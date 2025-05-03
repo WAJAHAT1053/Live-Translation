@@ -1,4 +1,3 @@
-// frontend/hooks/peer.js
 import Peer from "peerjs";
 
 export default function setupPeer(
@@ -13,11 +12,12 @@ export default function setupPeer(
 ) {
   console.log("🔧 Setting up peer with ID:", userId);
 
-  const host = "live-translation-zd2c.onrender.com"; // 👈 your deployed PeerJS domain;
+  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
+  const host = isLocal ? "localhost" : "live-translation-zd2c.onrender.com";
 
   const peer = new Peer(userId, {
     host,
-    port:443,
+    port: isLocal ? 9000 : 443,
     path: "/myapp",
     secure: !isLocal,
     debug: 3,
