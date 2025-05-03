@@ -7,27 +7,34 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
   const audioRef = useRef(null);
 
   const translateAndPlay = useCallback(async (blob) => {
-    if (!blob || !sourceLanguage || !targetLanguage) return;
+    if (!blob || !sourceLanguage || !targetLanguage) {
+      console.error('❌ Missing required parameters:', {
+        hasBlob: !!blob,
+        sourceLanguage,
+        targetLanguage
+      });
+      return;
+    }
 
     try {
       console.log("🎙️ Uploading audio for translation...");
       console.log("🌐 Backend URL:", process.env.NEXT_PUBLIC_BACKEND_URL);
+      console.log("🔤 Languages:", { sourceLanguage, targetLanguage });
 
       const file = new File([blob], "recording.webm", { type: "audio/webm" });
+      console.log("📦 File details:", {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
 
       const formData = new FormData();
       formData.append("audio", file);
       formData.append("source_language", sourceLanguage);
       formData.append("target_language", targetLanguage);
 
-      console.log("📤 Sending request to:", `/api/proxy/translate-audio`);
-      console.log("📦 Request data:", {
-        sourceLanguage,
-        targetLanguage,
-        fileSize: blob.size,
-        fileType: blob.type
-      });
-
+      console.log("📤 Sending request to proxy endpoint");
+      
       const response = await fetch('/api/proxy/translate-audio', {
         method: 'POST',
         body: formData,
@@ -37,9 +44,15 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
         credentials: 'include'
       });
 
+      console.log("📥 Received response:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Translation failed with status:', response.status, errorText);
+        console.error('❌ Translation failed with status:', response.status, errorText);
         throw new Error(`Translation failed: ${response.status} ${errorText}`);
       }
 
@@ -54,11 +67,20 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
         console.log("🌎 Translated:", decodedTranslated);
         setTranslation(decodedTranslated);
       } else {
-        console.warn("⚠️ No translation metadata received.");
+        console.warn("⚠️ No translation metadata received in headers");
         setTranslation('');
       }
 
       const audioBlob = await response.blob();
+      console.log("🔊 Received audio blob:", {
+        size: audioBlob.size,
+        type: audioBlob.type
+      });
+
+      if (!audioBlob || audioBlob.size === 0) {
+        throw new Error('Received empty audio blob');
+      }
+
       const audioUrl = URL.createObjectURL(audioBlob);
 
       // Cleanup old audio
