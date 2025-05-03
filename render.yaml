@@ -16,4 +16,4 @@ services:
     rootDir: translation-app/frontend
     buildCommand: npm install && npm run build
     startCommand: npm start
-    staticPublishPath: out
+    
