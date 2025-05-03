@@ -1,0 +1,21 @@
+# Node modules
+node_modules/
+
+# Build output
+.next/
+dist/
+out/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Env vars
+.env
+
+# IDE
+.vscode/
+.idea/
