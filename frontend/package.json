@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "set HOST=192.168.29.218 && next start"
+    "start": "next start"
   },
   "keywords": [],
   "author": "",
