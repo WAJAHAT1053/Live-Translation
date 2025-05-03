@@ -29,15 +29,23 @@ app = FastAPI()
 # CORS settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In production, replace with your Vercel domain
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["source-text-base64", "translated-text-base64"]
 )
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "Translation service is running"}
 
 @app.post("/translate-audio")
 async def translate_audio(audio: UploadFile, source_language: str = Form(...), target_language: str = Form(...)):
     try:
+        print(f"📥 Received translation request - Source: {source_language}, Target: {target_language}")
+        print(f"📦 File info - Name: {audio.filename}, Type: {audio.content_type}")
+        
         # Save file with extension
         input_path = f"temp_{audio.filename or 'input'}.webm"
         content = await audio.read()

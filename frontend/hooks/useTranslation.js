@@ -11,6 +11,7 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
 
     try {
       console.log("🎙️ Uploading audio for translation...");
+      console.log("🌐 Backend URL:", process.env.NEXT_PUBLIC_BACKEND_URL);
 
       const file = new File([blob], "recording.webm", { type: "audio/webm" });
 
@@ -19,13 +20,27 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
       formData.append("source_language", sourceLanguage);
       formData.append("target_language", targetLanguage);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/translate-audio`, {
+      console.log("📤 Sending request to:", `/api/proxy/translate-audio`);
+      console.log("📦 Request data:", {
+        sourceLanguage,
+        targetLanguage,
+        fileSize: blob.size,
+        fileType: blob.type
+      });
+
+      const response = await fetch('/api/proxy/translate-audio', {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+          'Accept': 'audio/mpeg',
+        },
+        credentials: 'include'
       });
 
       if (!response.ok) {
-        throw new Error('Translation failed');
+        const errorText = await response.text();
+        console.error('Translation failed with status:', response.status, errorText);
+        throw new Error(`Translation failed: ${response.status} ${errorText}`);
       }
 
       // Decode texts from headers
