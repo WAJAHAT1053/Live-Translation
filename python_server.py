@@ -2,7 +2,7 @@
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI
+import openai
 from gtts import gTTS
 import os
 import io
@@ -11,6 +11,9 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Set OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Language mapping for gTTS
 LANGUAGE_MAPPING = {
@@ -32,13 +35,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 @app.post("/translate-audio")
 async def translate_audio(audio: UploadFile, source_language: str = Form(...), target_language: str = Form(...)):
     try:
-        # Fix: Save file with correct extension
+        # Save file with extension
         input_path = f"temp_{audio.filename or 'input'}.webm"
         content = await audio.read()
         with open(input_path, "wb") as f:
@@ -48,7 +48,7 @@ async def translate_audio(audio: UploadFile, source_language: str = Form(...), t
 
         # Step 1: Transcribe
         with open(input_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(
+            transcript = openai.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
                 language=source_language
@@ -57,7 +57,7 @@ async def translate_audio(audio: UploadFile, source_language: str = Form(...), t
         print(f"📝 Transcribed text: {source_text}")
 
         # Step 2: Translate using GPT
-        response = client.chat.completions.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": f"Translate from {source_language} to {target_language}."},
@@ -68,11 +68,10 @@ async def translate_audio(audio: UploadFile, source_language: str = Form(...), t
         print(f"🌍 Translated text: {translated_text}")
 
         # Step 3: Convert translated text to speech
-        # Get the correct gTTS language code
         gtts_lang = LANGUAGE_MAPPING.get(target_language)
         if not gtts_lang:
             raise ValueError(f"Unsupported target language: {target_language}")
-            
+        
         tts = gTTS(text=translated_text, lang=gtts_lang)
         output_buffer = io.BytesIO()
         tts.write_to_fp(output_buffer)
