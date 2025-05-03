@@ -13,11 +13,11 @@ export default function setupPeer(
 ) {
   console.log("🔧 Setting up peer with ID:", userId);
 
-  const isLocal = window.location.hostname === "localhost";
+  const host = "live-translation-zd2c.onrender.com"; // 👈 your deployed PeerJS domain;
 
   const peer = new Peer(userId, {
-    host: isLocal ? "192.168.29.218" : "live-translation-zd2c.onrender.com",
-    port: isLocal ? 9000 : 443,
+    host,
+    port:443,
     path: "/myapp",
     secure: !isLocal,
     debug: 3,
