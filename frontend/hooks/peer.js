@@ -1,17 +1,25 @@
 // frontend/hooks/peer.js
 import Peer from "peerjs";
 
-export default function setupPeer(roomId, socketRef, userId, localStreamRef, setRemoteStream, onTranscriptReceived, onLanguagePreferencesReceived, onAudioMessageReceived) {
+export default function setupPeer(
+  roomId,
+  socketRef,
+  userId,
+  localStreamRef,
+  setRemoteStream,
+  onTranscriptReceived,
+  onLanguagePreferencesReceived,
+  onAudioMessageReceived
+) {
   console.log("🔧 Setting up peer with ID:", userId);
 
-  const host = window.location.hostname === "localhost" ? "192.168.29.218" : window.location.hostname;
-  console.log("🌐 Using host:", host);
+  const isLocal = window.location.hostname === "localhost";
 
   const peer = new Peer(userId, {
-    host,
-    port: 9000,
+    host: isLocal ? "192.168.29.218" : window.location.hostname,
+    port: isLocal ? 9000 : 443,
     path: "/myapp",
-    secure: false,
+    secure: !isLocal,
     debug: 3,
     config: {
       iceServers: [
