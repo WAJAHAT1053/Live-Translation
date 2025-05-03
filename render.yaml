@@ -1,0 +1,19 @@
+
+services:
+  - type: web
+    name: translation-backend
+    env: python
+    rootDir: translation-app
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn python_server:app --host=0.0.0.0 --port=10000
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+
+  - type: web
+    name: translation-frontend
+    env: node
+    rootDir: translation-app/frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    staticPublishPath: out
