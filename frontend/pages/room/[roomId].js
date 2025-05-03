@@ -339,7 +339,9 @@ export default function Room() {
       try {
         // Start recording and enable audio
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorderRef.current = new MediaRecorder(stream);
+        mediaRecorderRef.current = new MediaRecorder(stream, {
+          mimeType: 'audio/webm;codecs=opus'
+        });
         audioChunksRef.current = [];
 
         mediaRecorderRef.current.ondataavailable = (event) => {
@@ -351,7 +353,7 @@ export default function Room() {
         mediaRecorderRef.current.onstop = async () => {
           try {
             console.log('🎙️ Recording stopped, processing audio...');
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
             
             // Save locally
             const timestamp = new Date().toLocaleTimeString();
