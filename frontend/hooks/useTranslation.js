@@ -19,7 +19,7 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
       formData.append("source_language", sourceLanguage);
       formData.append("target_language", targetLanguage);
 
-      const response = await fetch('http://localhost:8000/translate-audio', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/translate-audio`, {
         method: 'POST',
         body: formData
       });
@@ -28,7 +28,7 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
         throw new Error('Translation failed');
       }
 
-      // Get source and translated texts from response headers
+      // Decode texts from headers
       const sourceTextBase64 = response.headers.get("source-text-base64");
       const translatedTextBase64 = response.headers.get("translated-text-base64");
 
@@ -40,12 +40,13 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
         setTranslation(decodedTranslated);
       } else {
         console.warn("⚠️ No translation metadata received.");
+        setTranslation('');
       }
 
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
 
-      // Play the translated audio
+      // Cleanup old audio
       if (audioRef.current) {
         audioRef.current.pause();
         URL.revokeObjectURL(audioRef.current.src);
@@ -61,7 +62,7 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
 
     } catch (err) {
       console.error('❌ Translation/audio error:', err);
-      setError(err.message);
+      setError(err.message || 'Unknown error occurred');
     }
   }, [sourceLanguage, targetLanguage]);
 
