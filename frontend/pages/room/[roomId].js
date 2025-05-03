@@ -619,10 +619,13 @@ export default function Room() {
       formData.append('source_language', sourceLanguage);
       formData.append('target_language', targetLanguage);
 
-      // Send to our Python translation server
-      const response = await fetch('http://localhost:8000/translate-audio', {
+      // Send to our proxy endpoint
+      const response = await fetch('/api/proxy/translate-audio', {
         method: 'POST',
         body: formData,
+        headers: {
+          'Accept': 'audio/mpeg',
+        },
       });
 
       if (!response.ok) {

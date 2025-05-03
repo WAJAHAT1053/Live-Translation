@@ -131,6 +131,28 @@ async def translate_audio(audio: UploadFile, source_language: str = Form(...), t
         except Exception as cleanup_error:
             print(f"⚠️ Cleanup error: {cleanup_error}")
 
+@app.post("/test-upload")
+async def test_upload(audio: UploadFile, source_language: str = Form(...), target_language: str = Form(...)):
+    try:
+        print(f"📥 Test upload received - Source: {source_language}, Target: {target_language}")
+        print(f"📦 File info - Name: {audio.filename}, Type: {audio.content_type}")
+        
+        # Read a small portion of the file to verify it's being received
+        content = await audio.read(1024)  # Read first 1KB
+        print(f"📄 First 1KB of file content: {content[:100]}...")
+        
+        return {
+            "status": "success",
+            "file_received": True,
+            "file_name": audio.filename,
+            "file_type": audio.content_type,
+            "source_language": source_language,
+            "target_language": target_language
+        }
+    except Exception as e:
+        print(f"❌ Test upload error: {str(e)}")
+        return {"error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

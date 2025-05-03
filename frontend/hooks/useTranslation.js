@@ -103,6 +103,42 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
     }
   }, [sourceLanguage, targetLanguage]);
 
+  const testUpload = useCallback(async (blob) => {
+    if (!blob || !sourceLanguage || !targetLanguage) {
+      console.error('❌ Missing required parameters:', {
+        hasBlob: !!blob,
+        sourceLanguage,
+        targetLanguage
+      });
+      return;
+    }
+
+    try {
+      console.log("🧪 Testing file upload...");
+      const file = new File([blob], "recording.webm", { type: "audio/webm" });
+
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append("source_language", sourceLanguage);
+      formData.append("target_language", targetLanguage);
+
+      const response = await fetch('/api/proxy/translate-audio?test=1', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      console.log("✅ Test upload result:", result);
+      return result;
+    } catch (err) {
+      console.error('❌ Test upload error:', err);
+      throw err;
+    }
+  }, [sourceLanguage, targetLanguage]);
+
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -117,5 +153,6 @@ export default function useTranslation(sourceLanguage, targetLanguage) {
     error,
     isPlaying,
     translateAndPlay,
+    testUpload,
   };
 }
