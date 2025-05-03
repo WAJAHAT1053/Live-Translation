@@ -1,9 +1,15 @@
-// frontend/hooks/useSocket.js
 import { useEffect, useRef } from "react";
 import io from "socket.io-client";
 
-// Use dynamic server URL based on environment
-const getSocketServerUrl = () => `http://${window.location.hostname}:5000`;
+// Use Render URL in production, localhost in dev
+const getSocketServerUrl = () => {
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return "http://localhost:5000"; // your local dev socket server
+  } else {
+    return "https://live-translation-1.onrender.com"; // ✅ your deployed Socket.IO server
+  }
+};
+
 
 export default function useSocket(roomId, userId) {
   const socketRef = useRef();
