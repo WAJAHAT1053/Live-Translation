@@ -16,7 +16,7 @@ export default function setupPeer(
   const isLocal = window.location.hostname === "localhost";
 
   const peer = new Peer(userId, {
-    host: isLocal ? "192.168.29.218" : window.location.hostname,
+    host: isLocal ? "192.168.29.218" : "live-translation-zd2c.onrender.com",
     port: isLocal ? 9000 : 443,
     path: "/myapp",
     secure: !isLocal,
