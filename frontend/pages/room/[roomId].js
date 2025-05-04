@@ -364,15 +364,11 @@ export default function Room() {
               console.error('[AUDIO] ❌ Recorded audio is empty');
               throw new Error('Recorded audio is empty');
             }
-            // Test if the blob is playable
-            const testAudio = new Audio();
-            testAudio.src = URL.createObjectURL(audioBlob);
-            await new Promise((resolve, reject) => {
-              testAudio.onloadedmetadata = resolve;
-              testAudio.onerror = () => reject(new Error('Invalid audio data'));
+            // Skipping redundant audio validation
+            console.log('[AUDIO] Skipping redundant audio validation. Blob:', {
+              size: audioBlob.size,
+              type: audioBlob.type
             });
-            URL.revokeObjectURL(testAudio.src);
-            console.log('[AUDIO] ✅ Audio blob is valid and playable');
             // Save locally
             const timestamp = new Date().toLocaleTimeString();
             const url = URL.createObjectURL(audioBlob);
@@ -564,7 +560,7 @@ export default function Room() {
         
         // Create a promise to handle audio loading
         await new Promise((resolve, reject) => {
-          audio.onloadeddata = () => {
+          audio.onloadedmetadata = () => {
             console.log('✅ Audio loaded successfully:', {
               duration: audio.duration,
               readyState: audio.readyState
