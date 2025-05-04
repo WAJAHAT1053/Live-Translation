@@ -8,6 +8,7 @@ import useTranslation from "@/hooks/useTranslation";
 import LanguageSelector from "@/components/LanguageSelector";
 import { languages } from "@/utils/languages";
 import { v4 as uuidv4 } from "uuid";
+import { saveAs } from 'file-saver';
 
 export default function Room() {
   const router = useRouter();
@@ -89,6 +90,16 @@ export default function Room() {
 
   const [showCaptions, setShowCaptions] = useState(false);
   const [currentCaption, setCurrentCaption] = useState('');
+
+  const [logMessages, setLogMessages] = useState([]);
+  const addLog = (msg, type = 'log') => {
+    setLogMessages(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    if (type === 'error') {
+      console.error(msg);
+    } else {
+      console.log(msg);
+    }
+  };
 
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
@@ -358,14 +369,14 @@ export default function Room() {
               method: 'OPTIONS'
             });
             if (response.ok) {
-              console.log('[API] ✅ API is reachable and ready.');
+              addLog('[API] ✅ API is reachable and ready.');
               return true;
             } else {
-              console.error('[API] ❌ API is not reachable. Status:', response.status);
+              addLog('[API] ❌ API is not reachable. Status: ' + response.status, 'error');
               return false;
             }
           } catch (error) {
-            console.error('[API] ❌ Error connecting to API:', error);
+            addLog('[API] ❌ Error connecting to API: ' + error.message, 'error');
             return false;
           }
         };
@@ -415,7 +426,7 @@ export default function Room() {
                 // Translate the audio
                 await translateAudio(audioBlob);
               } catch (error) {
-                console.error('[AUDIO] ❌ Auto-translation/sending failed:', error);
+                addLog('[AUDIO] ❌ Auto-translation/sending failed: ' + error.message, 'error');
                 setIsTranslating(false);
                 alert('Failed to process audio. You can try using the manual translation button.');
               }
@@ -424,7 +435,7 @@ export default function Room() {
             }
             stream.getTracks().forEach(track => track.stop());
           } catch (error) {
-            console.error('[AUDIO] ❌ Error processing recording:', error);
+            addLog('[AUDIO] ❌ Error processing recording: ' + error.message, 'error');
             alert('Error processing recording. Please try again.');
           }
         };
@@ -441,7 +452,7 @@ export default function Room() {
           }
         }
       } catch (err) {
-        console.error('[AUDIO] ❌ Error starting recording:', err);
+        addLog('[AUDIO] ❌ Error starting recording: ' + err.message, 'error');
         alert('Could not start recording. Please check your microphone permissions.');
       }
     }
@@ -709,7 +720,7 @@ export default function Room() {
       await sendTranslatedAudio(newTranslationData);
       return url;
     } catch (error) {
-      console.error('[TRANSLATE] ❌ Translation error:', error);
+      addLog('[TRANSLATE] ❌ Translation error: ' + error.message, 'error');
       throw error;
     } finally {
       setIsTranslating(false);
@@ -904,7 +915,7 @@ export default function Room() {
         };
       });
     } catch (error) {
-      console.error('❌ Error sending audio message:', error);
+      addLog('[SEND] ❌ Error sending audio message: ' + error.message, 'error');
       throw error;
     }
   };
@@ -1260,6 +1271,21 @@ export default function Room() {
           <pre className="text-xs overflow-auto">
             {JSON.stringify(debugInfo, null, 2)}
           </pre>
+          <button
+            onClick={() => {
+              const blob = new Blob([logMessages.join('\n')], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `room-log-${roomId || 'unknown'}.txt`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="mt-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white font-medium"
+            disabled={logMessages.length === 0}
+          >
+            Download Log
+          </button>
         </div>
 
         {/* Add captions display */}
