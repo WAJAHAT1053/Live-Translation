@@ -376,7 +376,7 @@ export default function Room() {
             // Save locally
             const timestamp = new Date().toLocaleTimeString();
             const url = URL.createObjectURL(audioBlob);
-            setLocalRecordings(prev => [...prev, { url, timestamp }]);
+            setLocalRecordings(prev => [...prev, { url, timestamp, blob: audioBlob }]);
             // Automatically start translation if we have remote user's preferences
             if (remoteUserLanguages.wantsToHear) {
               console.log('[AUDIO] 🔄 Starting automatic translation...');
@@ -951,12 +951,16 @@ export default function Room() {
                             alert("Please wait for the other person's language preferences");
                             return;
                           }
-                          // Convert the URL back to a blob
-                          const response = await fetch(recording.url);
-                          const blob = await response.blob();
-                          
-                          // Translate the audio
-                          await translateAudio(blob);
+                          // Use the original blob directly
+                          if (!recording.blob) {
+                            alert('No audio blob found for this recording.');
+                            return;
+                          }
+                          console.log('[DEBUG] Using stored blob for translation:', {
+                            size: recording.blob.size,
+                            type: recording.blob.type
+                          });
+                          await translateAudio(recording.blob);
                         } catch (error) {
                           console.error('Translation failed:', error);
                           alert('Translation failed. Please try again.');
