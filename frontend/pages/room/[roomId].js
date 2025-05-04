@@ -324,6 +324,7 @@ export default function Room() {
     if (isLocalAudioEnabled) {
       // Stop recording and disable audio
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        console.log('[AUDIO] 🛑 Stopping local recording...');
         mediaRecorderRef.current.stop();
       }
       setIsLocalAudioEnabled(false);
@@ -338,6 +339,7 @@ export default function Room() {
     } else {
       try {
         // Start recording and enable audio
+        console.log('[AUDIO] 🎤 Requesting microphone for recording...');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorderRef.current = new MediaRecorder(stream, {
           mimeType: 'audio/webm;codecs=opus',
@@ -348,19 +350,20 @@ export default function Room() {
         mediaRecorderRef.current.ondataavailable = (event) => {
           if (event.data.size > 0) {
             audioChunksRef.current.push(event.data);
+            console.log(`[AUDIO] 📦 Data chunk received: ${event.data.size} bytes`);
           }
         };
 
         mediaRecorderRef.current.onstop = async () => {
           try {
-            console.log('🎙️ Recording stopped, processing audio...');
+            console.log('[AUDIO] 🛑 Recording stopped, processing audio...');
             const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-            
+            console.log(`[AUDIO] 📏 Audio blob size: ${audioBlob.size} bytes`);
             // Validate the blob
             if (audioBlob.size === 0) {
+              console.error('[AUDIO] ❌ Recorded audio is empty');
               throw new Error('Recorded audio is empty');
             }
-
             // Test if the blob is playable
             const testAudio = new Audio();
             testAudio.src = URL.createObjectURL(audioBlob);
@@ -369,40 +372,35 @@ export default function Room() {
               testAudio.onerror = () => reject(new Error('Invalid audio data'));
             });
             URL.revokeObjectURL(testAudio.src);
-            
+            console.log('[AUDIO] ✅ Audio blob is valid and playable');
             // Save locally
             const timestamp = new Date().toLocaleTimeString();
             const url = URL.createObjectURL(audioBlob);
             setLocalRecordings(prev => [...prev, { url, timestamp }]);
-
             // Automatically start translation if we have remote user's preferences
             if (remoteUserLanguages.wantsToHear) {
-              console.log('🔄 Starting automatic translation...');
+              console.log('[AUDIO] 🔄 Starting automatic translation...');
               setIsTranslating(true);
-              
               try {
                 // Wait a short moment before starting translation
                 await new Promise(resolve => setTimeout(resolve, 500));
-                
                 // Check if we have all required data before proceeding
                 if (!remotePeerId || !peerRef.current) {
                   throw new Error('Peer connection not ready');
                 }
-                
                 // Translate the audio
                 await translateAudio(audioBlob);
               } catch (error) {
-                console.error('❌ Auto-translation/sending failed:', error);
+                console.error('[AUDIO] ❌ Auto-translation/sending failed:', error);
                 setIsTranslating(false);
                 alert('Failed to process audio. You can try using the manual translation button.');
               }
             } else {
-              console.warn('⚠️ Cannot auto-translate - waiting for remote user language preferences');
+              console.warn('[AUDIO] ⚠️ Cannot auto-translate - waiting for remote user language preferences');
             }
-            
             stream.getTracks().forEach(track => track.stop());
           } catch (error) {
-            console.error('❌ Error processing recording:', error);
+            console.error('[AUDIO] ❌ Error processing recording:', error);
             alert('Error processing recording. Please try again.');
           }
         };
@@ -410,6 +408,7 @@ export default function Room() {
         mediaRecorderRef.current.start();
         setIsLocalAudioEnabled(true);
         setIsRecording(true);
+        console.log('[AUDIO] ▶️ Recording started.');
         if (remotePeerId && peerRef.current) {
           // Send recording started event through data connection
           const conn = peerRef.current.connections[remotePeerId];
@@ -418,7 +417,7 @@ export default function Room() {
           }
         }
       } catch (err) {
-        console.error('Error starting recording:', err);
+        console.error('[AUDIO] ❌ Error starting recording:', err);
         alert('Could not start recording. Please check your microphone permissions.');
       }
     }
@@ -629,13 +628,12 @@ export default function Room() {
   const translateAudio = async (audioBlob) => {
     setIsTranslating(true);
     try {
-      console.log('🎯 Starting translation process...');
+      console.log('[TRANSLATE] 🎯 Starting translation process...');
       // Create form data
       const formData = new FormData();
       formData.append('audio', audioBlob);
       formData.append('source_language', sourceLanguage);
       formData.append('target_language', targetLanguage);
-
       // Send to our proxy endpoint
       const response = await fetch('/api/proxy/translate-audio', {
         method: 'POST',
@@ -644,31 +642,25 @@ export default function Room() {
           'Accept': 'audio/mpeg',
         },
       });
-
       if (!response.ok) {
+        console.error('[TRANSLATE] ❌ Translation failed with status:', response.status);
         throw new Error('Translation failed');
       }
-
       // Get the translated audio blob
       const translatedAudioBlob = await response.blob();
-      
       // Create URL for the translated audio
       const url = URL.createObjectURL(translatedAudioBlob);
-      
       // Get the base64 encoded transcription and translation from headers
       const sourceTextB64 = response.headers.get('source-text-base64');
       const translatedTextB64 = response.headers.get('translated-text-base64');
-      
       // Decode the base64 strings
       const sourceText = sourceTextB64 ? new TextDecoder().decode(base64ToUint8Array(sourceTextB64)) : '';
       const translatedText = translatedTextB64 ? new TextDecoder().decode(base64ToUint8Array(translatedTextB64)) : '';
-      
-      console.log('✅ Translation completed:', {
+      console.log('[TRANSLATE] ✅ Translation completed:', {
         sourceText,
         translatedText,
         audioBlobSize: translatedAudioBlob.size
       });
-
       // Create translation data
       const newTranslationData = {
         audioBlob: translatedAudioBlob,
@@ -677,27 +669,23 @@ export default function Room() {
         sourceText,
         translatedText
       };
-
       // Set the translation data and URL
       setTranslationData(newTranslationData);
       setTranslatedAudioUrl(url);
-      
-      console.log('⏳ Waiting 2 seconds before auto-sending...');
+      console.log('[TRANSLATE] ⏳ Waiting 2 seconds before auto-sending...');
       // Wait 2 seconds to show the send button and translation results
       await new Promise(resolve => setTimeout(resolve, 2000));
-
       // Ensure translation data is set before sending
       if (!newTranslationData.audioBlob) {
+        console.error('[TRANSLATE] ❌ Translation data not properly set');
         throw new Error('Translation data not properly set');
       }
-
       // Automatically send the translated audio
-      console.log('🚀 Auto-sending translated audio...');
+      console.log('[TRANSLATE] 🚀 Auto-sending translated audio...');
       await sendTranslatedAudio(newTranslationData);
-
       return url;
     } catch (error) {
-      console.error('❌ Translation error:', error);
+      console.error('[TRANSLATE] ❌ Translation error:', error);
       throw error;
     } finally {
       setIsTranslating(false);
@@ -726,46 +714,35 @@ export default function Room() {
 
   // Modified sendTranslatedAudio to ensure we have all required data
   const sendTranslatedAudio = async (dataToSend = null) => {
-    // Use provided data or fall back to state
     const translationDataToUse = dataToSend || translationData;
-
-    // Add retry mechanism for missing data
     if (!translationDataToUse || !translationDataToUse.audioBlob) {
-      console.log('⏳ Waiting for translation data to be available...');
-      // Wait for up to 5 seconds for the data to be available
+      console.log('[SEND] ⏳ Waiting for translation data to be available...');
       for (let i = 0; i < 10; i++) {
         await new Promise(resolve => setTimeout(resolve, 500));
         if (translationData && translationData.audioBlob) {
-          console.log('✅ Translation data became available');
+          console.log('[SEND] ✅ Translation data became available');
           break;
         }
       }
-      
-      // If still no data, throw error
       if (!translationData || !translationData.audioBlob) {
-        console.error('❌ Cannot send audio: No translation data available after waiting');
+        console.error('[SEND] ❌ Cannot send audio: No translation data available after waiting');
         throw new Error('Missing translation data');
       }
     }
-
-    // Validate all required data is present
     if (!remotePeerId) {
-      console.error('❌ Cannot send audio: No remote peer ID');
+      console.error('[SEND] ❌ Cannot send audio: No remote peer ID');
       throw new Error('No remote peer connection available');
     }
-
     if (!peerRef.current) {
-      console.error('❌ Cannot send audio: No peer reference');
+      console.error('[SEND] ❌ Cannot send audio: No peer reference');
       throw new Error('No peer connection available');
     }
-
     if (!translationDataToUse || !translationDataToUse.audioBlob) {
-      console.error('❌ Cannot send audio: No translation data available');
+      console.error('[SEND] ❌ Cannot send audio: No translation data available');
       throw new Error('Missing translation data');
     }
-
-    console.log('🎯 Attempting to send audio message to peer:', remotePeerId);
-    console.log('📦 Translation data being sent:', {
+    console.log('[SEND] 🎯 Attempting to send audio message to peer:', remotePeerId);
+    console.log('[SEND] 📦 Translation data being sent:', {
       fromLanguage: translationDataToUse.fromLanguage,
       toLanguage: translationDataToUse.toLanguage,
       sourceText: translationDataToUse.sourceText,
@@ -773,44 +750,33 @@ export default function Room() {
       audioBlobSize: translationDataToUse.audioBlob.size,
       audioBlobType: translationDataToUse.audioBlob.type
     });
-
     try {
-      // First verify the blob is valid
       const testUrl = URL.createObjectURL(translationDataToUse.audioBlob);
       const testAudio = new Audio(testUrl);
-      
       return new Promise((resolve, reject) => {
         testAudio.onloadedmetadata = async () => {
-          console.log('✅ Source audio blob is valid:', {
+          console.log('[SEND] ✅ Source audio blob is valid:', {
             duration: testAudio.duration,
             readyState: testAudio.readyState,
             size: translationDataToUse.audioBlob.size
           });
           URL.revokeObjectURL(testUrl);
-
           try {
-            // Convert Blob to ArrayBuffer for sending
             const buffer = await translationDataToUse.audioBlob.arrayBuffer();
-            console.log('🔄 Converting to ArrayBuffer:', {
+            console.log('[SEND] 🔄 Converting to ArrayBuffer:', {
               originalSize: translationDataToUse.audioBlob.size,
               bufferSize: buffer.byteLength
             });
-
-            // Convert ArrayBuffer to Uint8Array and then to regular array
             const uint8Array = new Uint8Array(buffer);
             const regularArray = Array.from(uint8Array);
-
-            // Split the array into smaller chunks (1KB chunks)
-            const CHUNK_SIZE = 1024; // 1KB chunks
+            const CHUNK_SIZE = 1024;
             const chunks = chunkArray(regularArray, CHUNK_SIZE);
             const totalChunks = chunks.length;
-
-            console.log('🔄 Splitting audio into chunks:', {
+            console.log('[SEND] 🔄 Splitting audio into chunks:', {
               totalChunks,
               chunkSize: CHUNK_SIZE,
               totalSize: regularArray.length
             });
-
             // Ensure data connection is established
             const ensureDataConnection = () => {
               return new Promise((resolve, reject) => {
