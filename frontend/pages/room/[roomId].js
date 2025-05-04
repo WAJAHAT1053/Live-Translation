@@ -351,6 +351,25 @@ export default function Room() {
           }
         };
 
+        // Add API connectivity check function
+        const checkApiConnectivity = async () => {
+          try {
+            const response = await fetch('/api/proxy/translate-audio', {
+              method: 'OPTIONS'
+            });
+            if (response.ok) {
+              console.log('[API] ✅ API is reachable and ready.');
+              return true;
+            } else {
+              console.error('[API] ❌ API is not reachable. Status:', response.status);
+              return false;
+            }
+          } catch (error) {
+            console.error('[API] ❌ Error connecting to API:', error);
+            return false;
+          }
+        };
+
         mediaRecorderRef.current.onstop = async () => {
           try {
             console.log('[AUDIO] 🛑 Recording stopped, processing audio...');
@@ -380,6 +399,13 @@ export default function Room() {
                 // Check if we have all required data before proceeding
                 if (!remotePeerId || !peerRef.current) {
                   throw new Error('Peer connection not ready');
+                }
+                // Check API connectivity before translation
+                const apiReady = await checkApiConnectivity();
+                if (!apiReady) {
+                  alert('Cannot connect to the translation API. Please try again later.');
+                  setIsTranslating(false);
+                  return;
                 }
                 // Translate the audio
                 await translateAudio(audioBlob);
