@@ -8,12 +8,16 @@ import os
 import io
 import base64
 from dotenv import load_dotenv
+import httpx
 
 # Load environment variables
 load_dotenv()
 
 # Set OpenAI API key
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    http_client=httpx.Client()
+)
 
 # Language mapping for gTTS
 LANGUAGE_MAPPING = {
