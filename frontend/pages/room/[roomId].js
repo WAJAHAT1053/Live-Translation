@@ -370,6 +370,11 @@ export default function Room() {
           }
         };
 
+        // Check API connectivity on page load
+        useEffect(() => {
+          checkApiConnectivity();
+        }, []);
+
         mediaRecorderRef.current.onstop = async () => {
           try {
             console.log('[AUDIO] 🛑 Recording stopped, processing audio...');
