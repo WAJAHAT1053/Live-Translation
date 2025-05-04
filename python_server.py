@@ -2,7 +2,7 @@
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-import openai
+from openai import OpenAI
 from gtts import gTTS
 import os
 import io
@@ -12,8 +12,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Set OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Language mapping for gTTS
 LANGUAGE_MAPPING = {
@@ -29,7 +29,7 @@ app = FastAPI()
 # CORS settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your Vercel domain
+    allow_origins=["*"],  # Replace with your Vercel domain in production
     allow_credentials=True,
     allow_methods=["POST", "OPTIONS"],
     allow_headers=["*"],
@@ -44,9 +44,8 @@ async def health_check():
 async def translate_audio(audio: UploadFile, source_language: str = Form(...), target_language: str = Form(...)):
     try:
         print(f"📥 Received translation request - Source: {source_language}, Target: {target_language}")
-        print(f"📦 File info - Name: {audio.filename}, Type: {audio.content_type}, Size: {audio.size if hasattr(audio, 'size') else 'unknown'}")
+        print(f"📦 File info - Name: {audio.filename}, Type: {audio.content_type}")
 
-        # Validate input
         if not audio:
             raise ValueError("No audio file provided")
         if not source_language or not target_language:
@@ -56,7 +55,6 @@ async def translate_audio(audio: UploadFile, source_language: str = Form(...), t
         if target_language not in LANGUAGE_MAPPING:
             raise ValueError(f"Unsupported target language: {target_language}")
 
-        # Save file with extension
         input_path = f"temp_{audio.filename or 'input'}.webm"
         content = await audio.read()
         with open(input_path, "wb") as f:
@@ -67,7 +65,7 @@ async def translate_audio(audio: UploadFile, source_language: str = Form(...), t
         # Step 1: Transcribe
         try:
             with open(input_path, "rb") as audio_file:
-                transcript = openai.audio.transcriptions.create(
+                transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     language=source_language
@@ -80,7 +78,7 @@ async def translate_audio(audio: UploadFile, source_language: str = Form(...), t
 
         # Step 2: Translate using GPT
         try:
-            response = openai.chat.completions.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": f"Translate from {source_language} to {target_language}."},
@@ -137,10 +135,9 @@ async def test_upload(audio: UploadFile, source_language: str = Form(...), targe
         print(f"📥 Test upload received - Source: {source_language}, Target: {target_language}")
         print(f"📦 File info - Name: {audio.filename}, Type: {audio.content_type}")
         
-        # Read a small portion of the file to verify it's being received
-        content = await audio.read(1024)  # Read first 1KB
+        content = await audio.read(1024)
         print(f"📄 First 1KB of file content: {content[:100]}...")
-        
+
         return {
             "status": "success",
             "file_received": True,
