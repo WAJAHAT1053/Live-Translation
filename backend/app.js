@@ -33,5 +33,5 @@ io.on("connection", (socket) => {
 
 const PORT = 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Socket.io server running at http://localhost:${PORT}`);
+  console.log(`🚀Socket.io server running at http://localhost:${PORT}`);
 });
