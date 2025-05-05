@@ -68,7 +68,7 @@ export default function Room() {
     error: speechError,
     startListening,
     stopListening,
-  } = useSpeechRecognition(sourceLanguage);
+  } = useSpeechRecognition();
 
   const {
     translation,
