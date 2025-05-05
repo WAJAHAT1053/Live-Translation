@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export default function useSpeechRecognition() {
+export default function useSpeechRecognition(sourceLanguage = 'en') {
   const [transcript, setTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState(null);
@@ -15,7 +15,17 @@ export default function useSpeechRecognition() {
 
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US'; // Default to English
+    
+    // Map language codes to Web Speech API language codes
+    const languageMap = {
+      'en': 'en-US',
+      'hi': 'hi-IN',
+      'ta': 'ta-IN',
+      'te': 'te-IN',
+      'de': 'de-DE'
+    };
+    
+    recognition.lang = languageMap[sourceLanguage] || 'en-US';
 
     recognition.onresult = (event) => {
       const current = event.resultIndex;
@@ -42,7 +52,7 @@ export default function useSpeechRecognition() {
         recognition.stop();
       }
     };
-  }, [recognition, isListening]);
+  }, [recognition, isListening, sourceLanguage]);
 
   const startListening = useCallback(() => {
     if (!recognition) return;
