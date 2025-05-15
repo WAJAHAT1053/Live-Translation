@@ -954,7 +954,10 @@ export default function Room() {
       {/* Main video grid */}
       <div className={`flex-1 grid ${gridClass} gap-4 p-6 place-items-center transition-all duration-300`}>
         {videoStreams.map((stream, idx) => (
-          <div key={idx} className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden">
+          <div
+            key={idx}
+            className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden"
+          >
             <video
               ref={stream.ref}
               autoPlay
@@ -978,7 +981,7 @@ export default function Room() {
           </div>
         ))}
       </div>
-
+  
       {/* Bottom bar for controls */}
       <div className="w-full bg-gray-800 p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-gray-700">
         {/* Language selection and set button */}
