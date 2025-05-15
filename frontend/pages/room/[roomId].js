@@ -59,7 +59,6 @@ export default function Room() {
 
   const localStreamRef = useRef(null);
   const localVideoRef = useRef(null);
-  const mirrorCanvasRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerRef = useRef(null);
 
@@ -123,44 +122,11 @@ export default function Room() {
           }
         });
         
-        // Mirror the video using a canvas
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.muted = true;
-        video.playsInline = true;
-        await video.play();
-
-        // Create a hidden canvas
-        let canvas = mirrorCanvasRef.current;
-        if (!canvas) {
-          canvas = document.createElement('canvas');
-          mirrorCanvasRef.current = canvas;
-        }
-        canvas.width = 1280;
-        canvas.height = 720;
-        canvas.style.display = 'none';
-        document.body.appendChild(canvas);
-
-        // Draw mirrored video to canvas
-        const ctx = canvas.getContext('2d');
-        function drawFrame() {
-          ctx.save();
-          ctx.scale(-1, 1);
-          ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-          ctx.restore();
-          requestAnimationFrame(drawFrame);
-        }
-        drawFrame();
-
-        // Capture the mirrored stream
-        const mirroredStream = canvas.captureStream(30);
-        // Copy audio tracks from the original stream
-        stream.getAudioTracks().forEach(track => mirroredStream.addTrack(track));
-
-        localStreamRef.current = mirroredStream;
+        console.log("✅ Media permissions granted");
+        localStreamRef.current = stream;
         setLocalStreamReady(true);
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = mirroredStream;
+          localVideoRef.current.srcObject = stream;
         }
       } catch (err) {
         console.error("❌ Error accessing media devices:", err);
@@ -980,7 +946,7 @@ export default function Room() {
               autoPlay
               playsInline
               muted={stream.isLocal}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transform -scale-x-100"
             />
             <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
               {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
