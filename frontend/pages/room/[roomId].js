@@ -935,6 +935,20 @@ export default function Room() {
       ? 'grid-cols-2 grid-rows-1'
       : 'grid-cols-2 grid-rows-2';
 
+  // Always set local video srcObject
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [localStreamRef.current]);
+
+  // Always set remote video srcObject
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
       {/* Main video grid */}
