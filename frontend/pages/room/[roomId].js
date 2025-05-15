@@ -320,6 +320,27 @@ export default function Room() {
         }
       });
 
+      // When receiving a call, after answering, send our username back via data connection
+      peer.on('call', (call) => {
+        call.on('stream', (remoteStream) => {
+          setRemoteStream(remoteStream);
+        });
+        // Open a data connection back to the caller and send our username
+        const dataConn = peer.connect(call.peer);
+        dataConn.on('open', () => {
+          dataConn.send({ type: 'username', username });
+        });
+      });
+
+      // When receiving a username via data connection, update the mapping
+      peer.on('connection', (conn) => {
+        conn.on('data', (data) => {
+          if (data.type === 'username' && data.username) {
+            setPeerUsernames(prev => ({ ...prev, [conn.peer]: data.username }));
+          }
+        });
+      });
+
       // Cleanup function
       return () => {
         if (peerRef.current) {
