@@ -276,7 +276,9 @@ export default function Room() {
           });
           conn.on("data", (data) => {
             if (data.type === "username" && data.username) {
-              setRemoteUsername(data.username);
+              if (data.username !== username) {
+                setRemoteUsername(data.username);
+              }
             }
           });
         });
@@ -284,7 +286,9 @@ export default function Room() {
         // Listen for username from remote peer
         peer.on("data", (data) => {
           if (data.type === "username" && data.username) {
-            setRemoteUsername(data.username);
+            if (data.username !== username) {
+              setRemoteUsername(data.username);
+            }
           }
         });
       }
