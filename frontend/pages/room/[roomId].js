@@ -248,6 +248,9 @@ export default function Room() {
             sourceText: message.sourceText,
             translatedText: message.translatedText
           }]);
+        },
+        (username) => {
+          setRemoteUsername(username);
         }
       );
 
@@ -943,7 +946,7 @@ export default function Room() {
               autoPlay
               playsInline
               muted={stream.isLocal}
-              className={`w-full h-full object-cover ${stream.isLocal ? 'transform -scale-x-100' : ''}`}
+              className={`w-full h-full object-cover${stream.isLocal ? ' transform -scale-x-100' : ''}`}
             />
             <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
               {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}

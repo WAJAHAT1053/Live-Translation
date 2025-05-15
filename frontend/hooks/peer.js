@@ -8,7 +8,8 @@ export default function setupPeer(
   setRemoteStream,
   onTranscriptReceived,
   onLanguagePreferencesReceived,
-  onAudioMessageReceived
+  onAudioMessageReceived,
+  onUsernameReceived
 ) {
   console.log("🔧 Setting up peer with ID:", userId);
 
@@ -48,9 +49,18 @@ export default function setupPeer(
   const setupDataConnectionHandlers = (conn) => {
     conn.on("open", () => {
       console.log("📡 Data connection open with:", conn.peer);
+      if (typeof window !== 'undefined') {
+        const username = localStorage.getItem('username');
+        if (username) {
+          conn.send({ type: "username", username });
+        }
+      }
     });
 
     conn.on("data", (data) => {
+      if (data.type === "username" && data.username && onUsernameReceived) {
+        onUsernameReceived(data.username);
+      }
       if (data.type === "transcript") {
         onTranscriptReceived(data.text);
       } else if (data.type === "language-preferences") {
