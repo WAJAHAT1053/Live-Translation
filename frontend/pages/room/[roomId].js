@@ -9,39 +9,6 @@ import LanguageSelector from "@/components/LanguageSelector";
 import { languages } from "@/utils/languages";
 import { v4 as uuidv4 } from "uuid";
 
-// Utility to mirror a MediaStream using a canvas
-function getMirroredStream(originalStream) {
-  if (!originalStream) return null;
-  const video = document.createElement('video');
-  video.srcObject = originalStream;
-  video.muted = true;
-  video.playsInline = true;
-  video.autoplay = true;
-  video.width = 640;
-  video.height = 480;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 640;
-  canvas.height = 480;
-  const ctx = canvas.getContext('2d');
-
-  let animationFrame;
-  function draw() {
-    ctx.save();
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-    ctx.restore();
-    animationFrame = requestAnimationFrame(draw);
-  }
-  video.onplay = () => draw();
-  video.play();
-
-  const mirroredStream = canvas.captureStream(30);
-  // Copy audio tracks if present
-  originalStream.getAudioTracks().forEach(track => mirroredStream.addTrack(track));
-  return mirroredStream;
-}
-
 export default function Room() {
   const router = useRouter();
   const { roomId } = router.query;
@@ -127,10 +94,6 @@ export default function Room() {
   const [showCaptions, setShowCaptions] = useState(false);
   const [currentCaption, setCurrentCaption] = useState('');
 
-  // Mirrored streams for preview
-  const [mirroredLocalStream, setMirroredLocalStream] = useState(null);
-  const [mirroredRemoteStream, setMirroredRemoteStream] = useState(null);
-
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
     console.log("👤 UserID:", userId);
@@ -180,20 +143,6 @@ export default function Room() {
       }
     };
   }, []);
-
-  // Mirror local stream when available
-  useEffect(() => {
-    if (localStreamRef.current) {
-      setMirroredLocalStream(getMirroredStream(localStreamRef.current));
-    }
-  }, [localStreamRef.current]);
-
-  // Mirror remote stream when available
-  useEffect(() => {
-    if (remoteStream) {
-      setMirroredRemoteStream(getMirroredStream(remoteStream));
-    }
-  }, [remoteStream]);
 
   // Function to send language preferences to remote peer
   const sendLanguagePreferences = () => {
@@ -988,17 +937,17 @@ export default function Room() {
 
   // Always set local video srcObject
   useEffect(() => {
-    if (localVideoRef.current && mirroredLocalStream) {
-      localVideoRef.current.srcObject = mirroredLocalStream;
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
     }
-  }, [mirroredLocalStream]);
+  }, [localStreamRef.current]);
 
   // Always set remote video srcObject
   useEffect(() => {
-    if (remoteVideoRef.current && mirroredRemoteStream) {
-      remoteVideoRef.current.srcObject = mirroredRemoteStream;
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
     }
-  }, [mirroredRemoteStream]);
+  }, [remoteStream]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
@@ -1011,7 +960,7 @@ export default function Room() {
               autoPlay
               playsInline
               muted={stream.isLocal}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transform -scale-x-100"
             />
             <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
               {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
