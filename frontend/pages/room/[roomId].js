@@ -878,100 +878,114 @@ export default function Room() {
     }
   };
 
+  // Helper to get all video streams (local + remote)
+  const videoStreams = [
+    {
+      ref: localVideoRef,
+      label: 'You',
+      ready: localStreamReady,
+      isLocal: true,
+      isRecording,
+      transcript,
+    },
+    ...(remoteStream ? [{
+      ref: remoteVideoRef,
+      label: 'Other Person',
+      ready: connectionStatus === 'connected',
+      isLocal: false,
+      isRecording: isRemoteRecording,
+      transcript: remoteTranscript,
+    }] : [])
+  ];
+
+  // Determine grid classes based on number of streams
+  const gridClass = videoStreams.length === 1
+    ? 'grid-cols-1 grid-rows-1'
+    : videoStreams.length === 2
+      ? 'grid-cols-2 grid-rows-1'
+      : 'grid-cols-2 grid-rows-2';
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white space-y-4 p-4">
-      <div className="w-full max-w-4xl">
-        <h1 className="text-2xl font-bold mb-4">Room: {roomId || "loading..."}</h1>
-        
-        {/* Language Selection Section */}
-        <div className="mb-6 p-4 bg-gray-800 rounded-lg">
-          <div className="mb-4">
-            <LanguageSelector
-              sourceLanguage={sourceLanguage}
-              targetLanguage={targetLanguage}
-              onSourceLanguageChange={setSourceLanguage}
-              onTargetLanguageChange={setTargetLanguage}
+    <div className="flex flex-col min-h-screen bg-gray-900 text-white">
+      {/* Main video grid */}
+      <div className={`flex-1 grid ${gridClass} gap-4 p-6 place-items-center transition-all duration-300`}>
+        {videoStreams.map((stream, idx) => (
+          <div key={idx} className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden">
+            <video
+              ref={stream.ref}
+              autoPlay
+              playsInline
+              muted={stream.isLocal}
+              className="w-full h-full object-cover"
             />
-          </div>
-          
-          {/* Set Language Button */}
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={sendLanguagePreferences}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white font-medium"
-            >
-              Set Languages
-            </button>
-          </div>
-
-          {/* Show Remote User's Language Preferences */}
-          {remoteUserLanguages.speaks && (
-            <div className="mt-4 p-3 bg-gray-700 rounded-md">
-              <h3 className="text-sm font-medium mb-2">Other person's languages:</h3>
-              <p className="text-sm">Speaks: {languages.find(l => l.code === remoteUserLanguages.speaks)?.name || remoteUserLanguages.speaks}</p>
-              <p className="text-sm">Wants to hear: {languages.find(l => l.code === remoteUserLanguages.wantsToHear)?.name || remoteUserLanguages.wantsToHear}</p>
+            <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
+              {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
             </div>
-          )}
+            {stream.isRecording && (
+              <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
+                <span className="mr-1">●</span> Recording
+              </div>
+            )}
+            {stream.transcript && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
+                <p className="text-white text-sm">{stream.transcript}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom bar for controls */}
+      <div className="w-full bg-gray-800 p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-gray-700">
+        {/* Language selection and set button */}
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <LanguageSelector
+            sourceLanguage={sourceLanguage}
+            targetLanguage={targetLanguage}
+            onSourceLanguageChange={setSourceLanguage}
+            onTargetLanguageChange={setTargetLanguage}
+          />
+          <button
+            onClick={sendLanguagePreferences}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white font-medium"
+          >
+            Set Languages
+          </button>
         </div>
+        {/* Audio/Video controls */}
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={toggleAudio}
+            disabled={isRemoteRecording}
+            className={`p-3 rounded-full ${
+              isRemoteRecording ? 'bg-gray-600 opacity-50 cursor-not-allowed' :
+              isLocalAudioEnabled ? 'bg-blue-600' : 'bg-red-600'
+            }`}
+            title={
+              isRemoteRecording ? "Other person is recording" :
+              isLocalAudioEnabled ? "Stop recording" : "Start recording"
+            }
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <button 
+            onClick={toggleVideo}
+            className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
+            title={isLocalVideoEnabled ? "Turn off video" : "Turn on video"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
-        {/* Recordings Section */}
-        {/* ... removed 'Your Recordings' section ... */}
-
-        {/* Translated Audio Section */}
-        {translatedAudioUrl && (
-          <div className="mb-6 p-4 bg-gray-800 rounded-lg">
-            <h3 className="text-lg font-medium mb-3">Translated Audio</h3>
-            <div className="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
-              <div className="flex-1">
-                <p className="text-sm text-gray-300 mb-2">
-                  From: {languages.find(l => l.code === sourceLanguage)?.name || sourceLanguage}
-                  {' → '}
-                  {languages.find(l => l.code === targetLanguage)?.name || targetLanguage}
-                </p>
-                {translationData?.sourceText && (
-                  <p className="text-xs text-gray-400">Original: {translationData.sourceText}</p>
-                )}
-                {translationData?.translatedText && (
-                  <p className="text-xs text-gray-400">Translated: {translationData.translatedText}</p>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    const audio = new Audio(translatedAudioUrl);
-                    audio.onplay = () => {
-                      setShowCaptions(true);
-                      setCurrentCaption(translationData?.translatedText || '');
-                    };
-                    audio.onended = () => {
-                      setShowCaptions(false);
-                      setCurrentCaption('');
-                    };
-                    audio.play();
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full flex items-center text-sm"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                  </svg>
-                  Play
-                </button>
-                <button
-                  onClick={sendTranslatedAudio}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full flex items-center text-sm"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                  </svg>
-                  Send
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Received Audios Section */}
-        <div className="mb-6 p-4 bg-gray-800 rounded-lg">
+      {/* Floating overlays for received audios, translation status, and captions */}
+      <div className="fixed top-4 right-4 w-80 max-w-full z-50 space-y-4">
+        {/* Received Audios */}
+        <div className="bg-gray-800 rounded-lg shadow-lg p-4">
           <h3 className="text-lg font-medium mb-3">Received Audios</h3>
           {receivedAudios.length === 0 ? (
             <p className="text-gray-400 text-sm">No received audios yet.</p>
@@ -1014,153 +1028,21 @@ export default function Room() {
             </div>
           )}
         </div>
-
-        <div className="flex flex-col md:flex-row gap-4 justify-center">
-          {/* Local video container */}
-          <div className="relative">
-            <div className="flex justify-between items-center mb-1">
-              <p className="text-center">You</p>
-              <span className="text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
-                {localStreamReady ? "✅ Local stream ready" : "⏳ Loading..."}
-              </span>
-            </div>
-            <div className="relative">
-              <div className="transform -scale-x-100">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full md:w-64 h-48 bg-black rounded-lg"
-                />
-              </div>
-              {isRecording && (
-                <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
-                  <span className="mr-1">●</span> Recording
-                </div>
-              )}
-            </div>
-            
-            {/* Local transcript */}
-            {transcript && (
-              <div className="absolute bottom-16 left-0 right-0 mx-auto w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
-                <p className="text-white text-sm">{transcript}</p>
-              </div>
-            )}
-            
-            {/* Local media controls */}
-            <div className="flex justify-center space-x-4 mt-2">
-              <button 
-                onClick={toggleAudio}
-                disabled={isRemoteRecording}
-                className={`p-3 rounded-full ${
-                  isRemoteRecording ? 'bg-gray-600 opacity-50 cursor-not-allowed' :
-                  isLocalAudioEnabled ? 'bg-blue-600' : 'bg-red-600'
-                }`}
-                title={
-                  isRemoteRecording ? "Other person is recording" :
-                  isLocalAudioEnabled ? "Stop recording" : "Start recording"
-                }
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button 
-                onClick={toggleVideo}
-                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
-                title={isLocalVideoEnabled ? "Turn off video" : "Turn on video"}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Remote video container */}
-          <div className="relative">
-            <div className="flex justify-between items-center mb-1">
-              <p className="text-center">Other Person</p>
-              <span className="text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
-                {connectionStatus === "connected" ? "✅ Connected" : 
-                 connectionStatus === "error" ? "❌ Connection error" : 
-                 "⏳ Waiting for peer..."}
-              </span>
-            </div>
-            <div className="relative">
-              <div className="transform -scale-x-100">
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full md:w-64 h-48 bg-black rounded-lg"
-                />
-              </div>
-              {isRemoteRecording && (
-                <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
-                  <span className="mr-1">●</span> Recording
-                </div>
-              )}
-            </div>
-            
-            {/* Remote transcript */}
-            {remoteTranscript && (
-              <div className="absolute bottom-16 left-0 right-0 mx-auto w-max max-w-[80%] px-4 py-2 bg-green-900 bg-opacity-70 rounded-md">
-                <p className="text-white text-sm">{remoteTranscript}</p>
-              </div>
-            )}
-
-            {/* Received audio player */}
-            {receivedAudioUrl && (
-              <div className="mt-2 flex justify-center">
-                <button
-                  onClick={() => {
-                    const audio = new Audio(receivedAudioUrl);
-                    audio.onplay = () => {
-                      setShowCaptions(true);
-                      const currentAudio = receivedAudios.find(audio => audio.url === receivedAudioUrl);
-                      setCurrentCaption(currentAudio?.translatedText || '');
-                    };
-                    audio.onended = () => {
-                      setShowCaptions(false);
-                      setCurrentCaption('');
-                    };
-                    audio.play();
-                  }}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full flex items-center"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                  </svg>
-                  Play Message
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-        
         {/* Translation status */}
-        <div className="mt-4 text-center">
-          {isPlaying && (
-            <p className="text-green-400">Playing translated audio...</p>
-          )}
-          {(speechError || translationError) && (
-            <p className="text-red-400">Error: {speechError || translationError}</p>
-          )}
-        </div>
-        
-        {/* Debug information */}
-        {/* ... removed 'Debug Info' section ... */}
-
-        {/* Add captions display */}
-        {showCaptions && currentCaption && (
-          <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-75 p-4 text-center">
-            <p className="text-white text-lg">{currentCaption}</p>
+        {(isPlaying || speechError || translationError) && (
+          <div className="bg-gray-800 rounded-lg shadow-lg p-4">
+            {isPlaying && <p className="text-green-400">Playing translated audio...</p>}
+            {(speechError || translationError) && <p className="text-red-400">Error: {speechError || translationError}</p>}
           </div>
         )}
       </div>
+
+      {/* Captions overlay at the bottom center */}
+      {showCaptions && currentCaption && (
+        <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-75 p-4 text-center z-50">
+          <p className="text-white text-lg">{currentCaption}</p>
+        </div>
+      )}
     </div>
   );
 }
