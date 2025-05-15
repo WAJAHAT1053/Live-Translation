@@ -94,6 +94,8 @@ export default function Room() {
   const [showCaptions, setShowCaptions] = useState(false);
   const [currentCaption, setCurrentCaption] = useState('');
 
+  const [peerUsernames, setPeerUsernames] = useState({});
+
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
     console.log("👤 UserID:", userId);
@@ -215,11 +217,11 @@ export default function Room() {
         socketRef, 
         userId, 
         localStreamRef, 
-        (stream) => {
-          console.log('Received remote stream:', {
-            hasAudio: stream.getAudioTracks().length > 0,
-            hasVideo: stream.getVideoTracks().length > 0
-          });
+        (stream, callObj) => {
+          // When receiving a remote stream, store the username from call metadata
+          if (callObj && callObj.metadata && callObj.peer) {
+            setPeerUsernames(prev => ({ ...prev, [callObj.peer]: callObj.metadata.username || 'Unknown' }));
+          }
           setRemoteStream(stream);
         },
         (text) => {
@@ -304,6 +306,18 @@ export default function Room() {
 
       socketRef.current.on("disconnect", () => {
         setDebugInfo(prev => ({ ...prev, socketConnected: false }));
+      });
+
+      // Patch outgoing call to send username as metadata
+      socketRef.current.on("user-connected", (remoteUserId) => {
+        if (!peer.connections[remoteUserId]) {
+          const call = peer.call(remoteUserId, localStreamRef.current, { metadata: { username } });
+          if (call) {
+            call.on("stream", (remoteStream) => {
+              setRemoteStream(remoteStream);
+            });
+          }
+        }
       });
 
       // Cleanup function
@@ -924,7 +938,7 @@ export default function Room() {
     },
     ...(remoteStream ? [{
       ref: remoteVideoRef,
-      label: remoteUsername || 'Other Person',
+      label: peerUsernames[remotePeerId] || remoteUsername || 'Other Person',
       ready: connectionStatus === 'connected',
       isLocal: false,
       isRecording: isRemoteRecording,
