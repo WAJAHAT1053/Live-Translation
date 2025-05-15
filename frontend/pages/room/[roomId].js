@@ -13,6 +13,10 @@ export default function Room() {
   const router = useRouter();
   const { roomId } = router.query;
 
+  // Username logic
+  const [username, setUsername] = useState("");
+  const [remoteUsername, setRemoteUsername] = useState("");
+
   const [userId] = useState(() => uuidv4());
   const [remoteStream, setRemoteStream] = useState(null);
   const [localStreamReady, setLocalStreamReady] = useState(false);
@@ -94,6 +98,12 @@ export default function Room() {
     console.log("🧠 RoomID:", roomId);
     console.log("👤 UserID:", userId);
   }, [roomId, userId]);
+
+  // On mount, get username from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('username');
+    if (stored) setUsername(stored);
+  }, []);
 
   // Get local media with error handling
   useEffect(() => {
@@ -256,6 +266,23 @@ export default function Room() {
           setRemotePeerId(conn.peer);
           // Send our preferences when we get a new connection
           setTimeout(sendLanguagePreferences, 1000); // Small delay to ensure connection is ready
+
+          // Send our username to the remote peer when connection is established
+          conn.on("open", () => {
+            conn.send({ type: "username", username });
+          });
+          conn.on("data", (data) => {
+            if (data.type === "username" && data.username) {
+              setRemoteUsername(data.username);
+            }
+          });
+        });
+
+        // Listen for username from remote peer
+        peer.on("data", (data) => {
+          if (data.type === "username" && data.username) {
+            setRemoteUsername(data.username);
+          }
         });
       }
 
@@ -282,7 +309,7 @@ export default function Room() {
         }
       };
     }
-  }, [roomId, socketRef, userId, localStreamReady]);
+  }, [roomId, socketRef, userId, localStreamReady, username]);
 
   // Display remote stream with error handling
   useEffect(() => {
@@ -882,7 +909,7 @@ export default function Room() {
   const videoStreams = [
     {
       ref: localVideoRef,
-      label: 'You',
+      label: username || 'You',
       ready: localStreamReady,
       isLocal: true,
       isRecording,
@@ -890,7 +917,7 @@ export default function Room() {
     },
     ...(remoteStream ? [{
       ref: remoteVideoRef,
-      label: 'Other Person',
+      label: remoteUsername || 'Other Person',
       ready: connectionStatus === 'connected',
       isLocal: false,
       isRecording: isRemoteRecording,
