@@ -983,6 +983,53 @@ export default function Room() {
         ))}
       </div>
   
+      {/* Bottom bar for controls */}
+      <div className="w-full bg-gray-800 p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-gray-700">
+        {/* Language selection and set button */}
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <LanguageSelector
+            sourceLanguage={sourceLanguage}
+            targetLanguage={targetLanguage}
+            onSourceLanguageChange={setSourceLanguage}
+            onTargetLanguageChange={setTargetLanguage}
+          />
+          <button
+            onClick={sendLanguagePreferences}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white font-medium"
+          >
+            Set Languages
+          </button>
+        </div>
+        {/* Audio/Video controls */}
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={toggleAudio}
+            disabled={isRemoteRecording}
+            className={`p-3 rounded-full ${
+              isRemoteRecording ? 'bg-gray-600 opacity-50 cursor-not-allowed' :
+              isLocalAudioEnabled ? 'bg-blue-600' : 'bg-red-600'
+            }`}
+            title={
+              isRemoteRecording ? "Other person is recording" :
+              isLocalAudioEnabled ? "Stop recording" : "Start recording"
+            }
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <button 
+            onClick={toggleVideo}
+            className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
+            title={isLocalVideoEnabled ? "Turn off video" : "Turn on video"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       {/* Floating overlays for received audios, translation status, and captions */}
       <div className="fixed top-4 right-4 w-80 max-w-full z-50 space-y-4">
         {/* Received Audios */}
