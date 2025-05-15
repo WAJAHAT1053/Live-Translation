@@ -1068,68 +1068,6 @@ export default function Room() {
           </button>
         </div>
       </div>
-
-      {/* Floating overlays for received audios, translation status, and captions */}
-      <div className="fixed top-4 right-4 w-80 max-w-full z-50 space-y-4">
-        {/* Received Audios */}
-        <div className="bg-gray-800 rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-medium mb-3">Received Audios</h3>
-          {receivedAudios.length === 0 ? (
-            <p className="text-gray-400 text-sm">No received audios yet.</p>
-          ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {receivedAudios.map((audio, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-300 mb-2">
-                      Received at {audio.timestamp}
-                      {audio.played && <span className="ml-2 text-green-400">(Played)</span>}
-                      <br />
-                      From: {languages.find(l => l.code === audio.fromLanguage)?.name || audio.fromLanguage}
-                      {' → '}
-                      {languages.find(l => l.code === audio.toLanguage)?.name || audio.toLanguage}
-                    </p>
-                    {audio.sourceText && (
-                      <p className="text-xs text-gray-400">Original: {audio.sourceText}</p>
-                    )}
-                    {audio.translatedText && (
-                      <p className="text-xs text-gray-400">Translated: {audio.translatedText}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      const audioElement = new Audio(audio.url);
-                      audioElement.play().catch(error => {
-                        console.error("❌ Audio play error:", error);
-                      });
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full flex items-center text-sm"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                    </svg>
-                    Play
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {/* Translation status */}
-        {(isPlaying || speechError || translationError) && (
-          <div className="bg-gray-800 rounded-lg shadow-lg p-4">
-            {isPlaying && <p className="text-green-400">Playing translated audio...</p>}
-            {(speechError || translationError) && <p className="text-red-400">Error: {speechError || translationError}</p>}
-          </div>
-        )}
-      </div>
-
-      {/* Captions overlay at the bottom center */}
-      {showCaptions && currentCaption && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-75 p-4 text-center z-50">
-          <p className="text-white text-lg">{currentCaption}</p>
-        </div>
-      )}
     </div>
   );
 }
