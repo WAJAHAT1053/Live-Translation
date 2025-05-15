@@ -988,38 +988,78 @@ export default function Room() {
     }
   }, [remoteStream]);
 
+  // Helper to get the latest translated audio/caption for each user
+  const getLatestTranslationFor = (isLocal) => {
+    if (isLocal) {
+      // Local user: use translationData and translatedAudioUrl
+      return translationData && translatedAudioUrl
+        ? { audioUrl: translatedAudioUrl, caption: translationData.translatedText }
+        : null;
+    } else {
+      // Remote user: use the latest receivedAudios
+      if (receivedAudios.length === 0) return null;
+      const last = receivedAudios[receivedAudios.length - 1];
+      return last && last.url && last.translatedText
+        ? { audioUrl: last.url, caption: last.translatedText }
+        : null;
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
       {/* Main video grid */}
       <div className={`flex-1 grid ${gridClass} gap-4 p-6 place-items-center transition-all duration-300`}>
-        {videoStreams.map((stream, idx) => (
-          <div
-            key={idx}
-            className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden"
-          >
-            <video
-              ref={stream.ref}
-              autoPlay
-              playsInline
-              muted={stream.isLocal}
-              style={{ transform: 'scaleX(-1)' }}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
-              {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
+        {videoStreams.map((stream, idx) => {
+          const translation = getLatestTranslationFor(stream.isLocal);
+          return (
+            <div
+              key={idx}
+              className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden"
+            >
+              <video
+                ref={stream.ref}
+                autoPlay
+                playsInline
+                muted={stream.isLocal}
+                style={{ transform: 'scaleX(-1)' }}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
+                {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
+              </div>
+              {stream.isRecording && (
+                <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
+                  <span className="mr-1">●</span> Recording
+                </div>
+              )}
+              {stream.transcript && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
+                  <p className="text-white text-sm">{stream.transcript}</p>
+                </div>
+              )}
+              {/* Translated audio and caption for this user */}
+              {translation && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center w-full px-2">
+                  <button
+                    onClick={() => {
+                      const audio = new Audio(translation.audioUrl);
+                      audio.play();
+                    }}
+                    className="mb-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full flex items-center text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                    </svg>
+                    Play Translation
+                  </button>
+                  <div className="bg-black bg-opacity-70 rounded px-3 py-1 text-white text-center text-sm max-w-full">
+                    {translation.caption}
+                  </div>
+                </div>
+              )}
             </div>
-            {stream.isRecording && (
-              <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
-                <span className="mr-1">●</span> Recording
-              </div>
-            )}
-            {stream.transcript && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
-                <p className="text-white text-sm">{stream.transcript}</p>
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
   
       {/* Bottom bar for controls */}
