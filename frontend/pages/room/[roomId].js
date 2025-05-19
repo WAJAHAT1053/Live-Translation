@@ -110,7 +110,7 @@ export default function Room() {
   useEffect(() => {
     const stored = localStorage.getItem('username');
     if (stored) setUsername(stored);
-  }, []); 
+  }, []);
 
   // Get local media with error handling
   useEffect(() => {
@@ -207,9 +207,135 @@ export default function Room() {
     }
   }, []);
 
+  // Setup socket event listeners
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    console.log('🔌 Setting up socket event listeners...');
+
+    socketRef.current.on("connect", () => {
+      console.log("🔌 Socket connected");
+      setDebugInfo(prev => ({ ...prev, socketConnected: true }));
+       // Emit join-room here once socket is confirmed connected
+       if (roomId && userId) {
+           console.log(`Attempting to join room ${roomId} with user ${userId} after socket connect.`);
+           socketRef.current.emit("join-room", roomId, userId);
+       }
+    });
+
+    socketRef.current.on("disconnect", (reason) => {
+      console.log("🔌 Socket disconnected:", reason);
+      setDebugInfo(prev => ({ ...prev, socketConnected: false }));
+    });
+
+    // Listen for the host ID from the server
+    socketRef.current.on('set-host', (hostPeerId) => {
+      console.log(`👑 Received host ID: ${hostPeerId}`);
+      setHostId(hostPeerId);
+    });
+
+    // Listen for user-kicked event
+    socketRef.current.on('user-kicked', (kickedUserId) => {
+      console.log(`🥾 User kicked: ${kickedUserId}`);
+      if (kickedUserId === userId) {
+        alert('You have been kicked from the room.');
+        // Disconnect peer and socket and navigate away
+        if (peerRef.current) peerRef.current.destroy();
+        if (socketRef.current) socketRef.current.disconnect();
+        router.push('/'); // Redirect to home page or a kicked page
+      }
+    });
+
+    // Listen for user-connected (for initiating calls)
+    socketRef.current.on("user-connected", (remoteUserId) => {
+        console.log(`Socket user-connected: ${remoteUserId}. My user ID: ${userId}`);
+        if (remoteUserId !== userId) {
+            // Check if a connection already exists to avoid duplicate connections
+            if (!peerRef.current || !peerRef.current.connections[remoteUserId] || peerRef.current.connections[remoteUserId].length === 0) {
+                 console.log(`Initiating call to ${remoteUserId}`);
+                 // Ensure local stream is ready before calling
+                 if (localStreamRef.current) {
+                     const call = peerRef.current.call(remoteUserId, localStreamRef.current, { metadata: { username } });
+                     if (call) {
+                         call.on("stream", (remoteStream) => {
+                             console.log(`Received remote stream from call with ${call.peer}.`);
+                             setRemoteStream(remoteStream);
+                             // Also try to establish a data connection if not already present and send username
+                             if (!peerRef.current.connections[call.peer] || peerRef.current.connections[call.peer].length === 0 || !peerRef.current.connections[call.peer].some(conn => conn.type === 'data')) {
+                                  console.log(`Call stream received, initiating data connection with ${call.peer} to send username.`);
+                                  const dataConn = peerRef.current.connect(call.peer, { reliable: true });
+                                  dataConn.on('open', () => {
+                                     console.log(`Data connection opened after call stream with ${dataConn.peer}. Sending username.`);
+                                     setTimeout(() => {
+                                          dataConn.send({ type: 'username', username });
+                                     }, 10); // Reduced delay to 10ms
+                                  });
+                                  dataConn.on('data', (data) => {
+                                     if (data.type === 'username' && data.username) {
+                                         if (data.username !== username) {
+                                              console.log(`Received username data via dataConn from ${dataConn.peer}: ${data.username}`);
+                                              setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
+                                          }
+                                     }
+                                  });
+                                  dataConn.on('close', () => console.log(`Data connection closed after call stream with ${dataConn.peer}.`));
+                                  dataConn.on('error', (err) => console.error(`Data connection error after call stream with ${dataConn.peer}:`, err));
+                             }
+                         });
+                          call.on('close', () => console.log(`Call closed with ${call.peer}.`));
+                          call.on('error', (err) => console.error(`Call error with ${call.peer}:`, err));
+                     } else {
+                         console.warn(`⚠️ Failed to create call object for ${remoteUserId}.`);
+                     }
+                 } else {
+                     console.warn(`⚠️ Cannot initiate call to ${remoteUserId}: Local stream not ready.`);
+                 }
+             } else {
+                  console.log(`Existing connection to ${remoteUserId} found, not initiating new call.`);
+                  // If connection exists but no data channel yet, try establishing one and sending username
+                  const existingConnections = peerRef.current.connections[remoteUserId];
+                  const dataConnExists = existingConnections.some(conn => conn.type === 'data');
+
+                  if (!dataConnExists) {
+                       console.log(`No data channel found for ${remoteUserId}. Initiating data connection to send username.`);
+                       const dataConn = peerRef.current.connect(remoteUserId, { reliable: true });
+                        dataConn.on('open', () => {
+                          console.log(`New data connection opened with ${dataConn.peer} from user-connected. Sending username.`);
+                           setTimeout(() => {
+                                dataConn.send({ type: 'username', username });
+                           }, 10); // Reduced delay to 10ms
+                        });
+                         dataConn.on('data', (data) => {
+                            if (data.type === 'username' && data.username) {
+                                if (data.username !== username) {
+                                     console.log(`Received username data via new dataConn from ${dataConn.peer}: ${data.username}`);
+                                     setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
+                                 }
+                            }
+                         });
+                         dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
+                         dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
+                  }
+             }
+         }
+       });
+
+    // Cleanup listeners when socket changes or component unmounts
+    return () => {
+      console.log('🔌 Cleaning up socket event listeners...');
+      if (socketRef.current) {
+        socketRef.current.off("connect");
+        socketRef.current.off("disconnect");
+        socketRef.current.off('set-host');
+        socketRef.current.off('user-kicked');
+        socketRef.current.off("user-connected");
+      }
+    };
+  }, [socketRef.current, userId, roomId, username, localStreamRef]); // Added dependencies for user-connected logic
+
   // Setup peer connection with transcript and language preferences handling
   useEffect(() => {
-    if (roomId && socketRef.current && userId && localStreamReady) {
+    if (roomId && socketRef.current && userId && localStreamReady && hostId !== null) {
       console.log('Setting up peer connection with:', {
         roomId,
         userId,
@@ -475,7 +601,7 @@ export default function Room() {
         }
       };
     }
-  }, [roomId, socketRef, userId, localStreamReady, username]);
+  }, [roomId, socketRef, userId, localStreamReady, username, hostId]);
 
   // Display remote stream with error handling
   useEffect(() => {
