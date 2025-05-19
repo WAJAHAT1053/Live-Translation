@@ -8,39 +8,16 @@ import useTranslation from "@/hooks/useTranslation";
 import LanguageSelector from "@/components/LanguageSelector";
 import { languages } from "@/utils/languages";
 import { v4 as uuidv4 } from "uuid";
-import useRoomManager from '@/modules/RoomManager';
 
 export default function Room() {
   const router = useRouter();
   const { roomId } = router.query;
-  const [userId] = useState(() => uuidv4());
-  const socketRef = useSocket(roomId, userId);
-
-  // Initialize room manager
-  const {
-    isHost,
-    isInitialized,
-    error,
-    // Host controls
-    participants,
-    mutedParticipants,
-    muteParticipant,
-    unmuteParticipant,
-    removeParticipant,
-    endMeeting,
-    // Participant controls
-    isMuted,
-    isVideoEnabled,
-    isHostPresent,
-    toggleMute,
-    toggleVideo,
-    leaveMeeting
-  } = useRoomManager(socketRef, roomId, userId, router);
 
   // Username logic
   const [username, setUsername] = useState("");
   const [remoteUsername, setRemoteUsername] = useState("");
 
+  const [userId] = useState(() => uuidv4());
   const [remoteStream, setRemoteStream] = useState(null);
   const [localStreamReady, setLocalStreamReady] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
@@ -85,6 +62,8 @@ export default function Room() {
   const remoteVideoRef = useRef(null);
   const peerRef = useRef(null);
 
+  const socketRef = useSocket(roomId, userId);
+
   const [remoteTranscript, setRemoteTranscript] = useState('');
   
   const {
@@ -116,9 +95,6 @@ export default function Room() {
   const [currentCaption, setCurrentCaption] = useState('');
 
   const [peerUsernames, setPeerUsernames] = useState({});
-
-  // Add host and participant management states
-  const [hostId, setHostId] = useState(null);
 
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
@@ -509,13 +485,13 @@ export default function Room() {
     }
   };
 
-  // Remove duplicate toggleVideo function since it's now provided by useRoomManager
-  const handleToggleVideo = () => {
+  // Simplified video toggle
+  const toggleVideo = () => {
     if (localStreamRef.current) {
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
       if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsLocalVideoEnabled(videoTrack.enabled);
+        videoTrack.enabled = !isLocalVideoEnabled;
+        setIsLocalVideoEnabled(!isLocalVideoEnabled);
       }
     }
   };
@@ -971,54 +947,7 @@ export default function Room() {
     }
   };
 
-  // Handle room info from server
-  useEffect(() => {
-    if (socketRef.current) {
-      socketRef.current.on("room-info", (info) => {
-        setHostId(info.hostId);
-      });
-
-      socketRef.current.on("host-changed", (newHostId) => {
-        setHostId(newHostId);
-      });
-
-      socketRef.current.on("participant-muted", (targetUserId) => {
-        setMutedParticipants(prev => new Set([...prev, targetUserId]));
-      });
-
-      socketRef.current.on("participant-removed", (targetUserId) => {
-        setParticipants(prev => prev.filter(id => id !== targetUserId));
-        if (targetUserId === userId) {
-          router.push('/'); // Redirect to home if removed
-        }
-      });
-
-      socketRef.current.on("room-full", () => {
-        alert("Room is full (maximum 4 participants)");
-        router.push('/');
-      });
-
-      socketRef.current.on("removed-from-room", () => {
-        alert("You have been removed from the room by the host");
-        router.push('/');
-      });
-    }
-  }, [socketRef.current, userId, router]);
-
-  // Remove duplicate declarations of these functions since they're now provided by useRoomManager
-  const handleMuteParticipant = (participantId) => {
-    if (isHost) {
-      socketRef.current.emit('mute-participant', { roomId, participantId });
-    }
-  };
-
-  const handleRemoveParticipant = (participantId) => {
-    if (isHost) {
-      socketRef.current.emit('remove-participant', { roomId, participantId });
-    }
-  };
-
-  // Update videoStreams array to use the new controls
+  // Helper to get all video streams (local + remote)
   const videoStreams = [
     {
       ref: localVideoRef,
@@ -1027,10 +956,6 @@ export default function Room() {
       isLocal: true,
       isRecording,
       transcript,
-      isHost,
-      userId,
-      isMuted: isMuted,
-      isVideoEnabled: isVideoEnabled
     },
     ...(remoteStream ? [{
       ref: remoteVideoRef,
@@ -1039,9 +964,6 @@ export default function Room() {
       isLocal: false,
       isRecording: isRemoteRecording,
       transcript: remoteTranscript,
-      isHost: hostId === remotePeerId,
-      userId: remotePeerId,
-      isMuted: mutedParticipants.has(remotePeerId)
     }] : [])
   ];
 
@@ -1066,131 +988,38 @@ export default function Room() {
     }
   }, [remoteStream]);
 
-  // Helper to get the latest translated audio/caption for each user
-  const getLatestTranslationFor = (isLocal) => {
-    if (isLocal) {
-      // Local user: use translationData and translatedAudioUrl
-      return translationData && translatedAudioUrl
-        ? { audioUrl: translatedAudioUrl, caption: translationData.translatedText }
-        : null;
-    } else {
-      // Remote user: use the latest receivedAudios
-      if (receivedAudios.length === 0) return null;
-      const last = receivedAudios[receivedAudios.length - 1];
-      return last && last.url && last.translatedText
-        ? { audioUrl: last.url, caption: last.translatedText }
-        : null;
-    }
-  };
-
-  // Show loading state while initializing
-  if (!isInitialized) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
-          <p className="mt-4">Initializing room...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state if initialization failed
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">{error}</p>
-          <button
-            onClick={() => router.push('/')}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md"
-          >
-            Return to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
       {/* Main video grid */}
       <div className={`flex-1 grid ${gridClass} gap-4 p-6 place-items-center transition-all duration-300`}>
-        {videoStreams.map((stream, idx) => {
-          const translation = getLatestTranslationFor(stream.isLocal);
-          return (
-            <div
-              key={idx}
-              className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden"
-            >
-              <video
-                ref={stream.ref}
-                autoPlay
-                playsInline
-                muted={stream.isLocal || stream.isMuted}
-                style={{ transform: 'scaleX(-1)' }}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
-                {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
-                {stream.isHost && ' 👑'}
+        {videoStreams.map((stream, idx) => (
+          <div
+            key={idx}
+            className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden"
+          >
+                <video
+              ref={stream.ref}
+                  autoPlay
+                  playsInline
+              muted={stream.isLocal}
+              style={{ transform: 'scaleX(-1)' }}
+              className="w-full h-full object-cover"
+                />
+            <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
+              {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
               </div>
-              {stream.isRecording && (
+            {stream.isRecording && (
                 <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
                   <span className="mr-1">●</span> Recording
                 </div>
               )}
-              {stream.transcript && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
-                  <p className="text-white text-sm">{stream.transcript}</p>
-                </div>
-              )}
-              {/* Host controls */}
-              {isHost && !stream.isLocal && (
-                <div className="absolute top-2 right-2 flex gap-2">
-                  <button
-                    onClick={() => stream.isMuted ? unmuteParticipant(stream.userId) : muteParticipant(stream.userId)}
-                    className={`p-2 rounded-full ${stream.isMuted ? 'bg-red-600' : 'bg-gray-600'}`}
-                    title={stream.isMuted ? "Unmute participant" : "Mute participant"}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => removeParticipant(stream.userId)}
-                    className="p-2 rounded-full bg-red-600"
-                    title="Remove participant"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-              {/* Translated audio and caption for this user */}
-              {translation && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center w-full px-2">
-                  <button
-                    onClick={() => {
-                      const audio = new Audio(translation.audioUrl);
-                      audio.play();
-                    }}
-                    className="mb-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full flex items-center text-sm"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                    </svg>
-                    Play Translation
-                  </button>
-                  <div className="bg-black bg-opacity-70 rounded px-3 py-1 text-white text-center text-sm max-w-full">
-                    {translation.caption}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+            {stream.transcript && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
+                <p className="text-white text-sm">{stream.transcript}</p>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
   
       {/* Bottom bar for controls */}
@@ -1212,47 +1041,32 @@ export default function Room() {
         </div>
         {/* Audio/Video controls */}
         <div className="flex items-center gap-4">
-          <button 
-            onClick={toggleMute}
-            className={`p-3 rounded-full ${isMuted ? 'bg-red-600' : 'bg-blue-600'}`}
-            title={isMuted ? "Unmute" : "Mute"}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-            </svg>
-          </button>
-          <button 
-            onClick={handleToggleVideo}
-            className={`p-3 rounded-full ${isVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
-            title={isVideoEnabled ? "Turn off video" : "Turn on video"}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-            </svg>
-          </button>
-          {isHost && (
-            <button
-              onClick={endMeeting}
-              className="p-3 rounded-full bg-red-600"
-              title="End meeting"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-          )}
-          {!isHost && (
-            <button
-              onClick={leaveMeeting}
-              className="p-3 rounded-full bg-red-600"
-              title="Leave meeting"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v3a1 1 0 102 0V9z" clipRule="evenodd" />
-              </svg>
-            </button>
-          )}
-        </div>
+              <button 
+                onClick={toggleAudio}
+                disabled={isRemoteRecording}
+                className={`p-3 rounded-full ${
+                  isRemoteRecording ? 'bg-gray-600 opacity-50 cursor-not-allowed' :
+                  isLocalAudioEnabled ? 'bg-blue-600' : 'bg-red-600'
+                }`}
+                title={
+                  isRemoteRecording ? "Other person is recording" :
+                  isLocalAudioEnabled ? "Stop recording" : "Start recording"
+                }
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button 
+                onClick={toggleVideo}
+                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
+                title={isLocalVideoEnabled ? "Turn off video" : "Turn on video"}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                </svg>
+              </button>
+            </div>
       </div>
     </div>
   );
