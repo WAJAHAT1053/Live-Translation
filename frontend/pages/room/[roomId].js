@@ -94,6 +94,7 @@ export default function Room() {
   const [currentCaption, setCurrentCaption] = useState('');
 
   const [peerUsernames, setPeerUsernames] = useState({});
+  const [hostId, setHostId] = useState(null); // State to store the host's ID
 
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
@@ -436,8 +437,27 @@ export default function Room() {
         setDebugInfo(prev => ({ ...prev, socketConnected: true }));
       });
 
-      socketRef.current.on("disconnect", () => {
+      socketRef.current.on("disconnect", (reason) => {
+        console.log("🔌 Socket disconnected:", reason);
         setDebugInfo(prev => ({ ...prev, socketConnected: false }));
+      });
+
+      // Listen for the host ID from the server
+      socketRef.current.on('set-host', (hostPeerId) => {
+        console.log(`👑 Received host ID: ${hostPeerId}`);
+        setHostId(hostPeerId);
+      });
+
+      // Listen for kick event
+      socketRef.current.on('user-kicked', (kickedUserId) => {
+        console.log(`🥾 User kicked: ${kickedUserId}`);
+        if (kickedUserId === userId) {
+          alert('You have been kicked from the room.');
+          // Disconnect peer and socket and navigate away
+          if (peerRef.current) peerRef.current.destroy();
+          if (socketRef.current) socketRef.current.disconnect();
+          router.push('/'); // Redirect to home page or a kicked page
+        }
       });
 
       // Cleanup function
@@ -1056,6 +1076,7 @@ export default function Room() {
       isRecording,
       transcript,
       translatedCaption: null, // Local stream doesn't need remote translation captions
+      userId: userId, // Add userId to stream data
     },
     ...(remoteStream ? [{
       ref: remoteVideoRef,
@@ -1066,6 +1087,7 @@ export default function Room() {
       transcript: remoteTranscript,
       // Get the latest translated text from receivedAudios for the remote stream caption
       translatedCaption: receivedAudios.length > 0 ? receivedAudios[receivedAudios.length - 1].translatedText : null,
+      userId: remotePeerId, // Add userId to stream data
     }] : [])
   ];
 
@@ -1103,44 +1125,71 @@ export default function Room() {
     }
   }, [remoteStream]);
 
+  // Function to handle kicking a user
+  const handleKick = (targetUserId) => {
+    if (userId === hostId && socketRef.current) {
+      console.log(`🥾 Host ${userId} attempting to kick user ${targetUserId}`);
+      socketRef.current.emit('kick-user', targetUserId);
+    } else {
+      console.warn('⚠️ Cannot kick user: Not the host or socket not connected');
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
       {/* Main video grid */}
       <div className={`flex-1 grid ${getGridClasses()} gap-4 p-6 place-items-center transition-all duration-300`}>
-        {videoStreams.map((stream, idx) => (
-          <div
-            key={idx}
-            className={`relative w-full ${getAspectRatioClass()} flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden shadow-lg`}
-          >
-            <video
-              ref={stream.ref}
-              autoPlay
-              playsInline
-              muted={stream.isLocal}
-              style={{ transform: 'scaleX(-1)' }}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
-              {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
-            </div>
-            {stream.isRecording && (
-              <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
-                <span className="mr-1">●</span> Recording
+        {videoStreams.map((stream, idx) => {
+          const isHost = stream.userId === hostId;
+          const isCurrentUserHost = userId === hostId; // Check if the current user is the host
+
+          return (
+            <div
+              key={idx}
+              className={`relative w-full ${getAspectRatioClass()} flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden shadow-lg`}
+            >
+              <video
+                ref={stream.ref}
+                autoPlay
+                playsInline
+                muted={stream.isLocal} // Mute local audio to prevent echo
+                style={{ transform: 'scaleX(-1)' }} // Apply flip to both local and remote videos
+                className="w-full h-full object-cover"
+              />
+              {/* Name Label with Host Indicator */}
+              <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs flex items-center">
+                {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
+                {isHost && <span className="ml-2 text-yellow-400 font-bold">👑 Host</span>} {/* Host Indicator */}
               </div>
-            )}
-            {stream.transcript && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
-                <p className="text-white text-sm">{stream.transcript}</p>
-              </div>
-            )}
-            {/* Display translated caption for remote stream */}
-            {stream.translatedCaption && !stream.isLocal && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-green-700 bg-opacity-80 rounded-md text-center">
-                    <p className="text-white text-sm">{stream.translatedCaption}</p>
+              {stream.isRecording && (
+                <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
+                  <span className="mr-1">●</span> Recording
                 </div>
-            )}
-          </div>
-        ))}
+              )}
+              {stream.transcript && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
+                  <p className="text-white text-sm">{stream.transcript}</p>
+                </div>
+              )}
+              {/* Display translated caption for remote stream */}
+              {stream.translatedCaption && !stream.isLocal && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-green-700 bg-opacity-80 rounded-md text-center">
+                      <p className="text-white text-sm">{stream.translatedCaption}</p>
+                  </div>
+              )}
+              {/* Kick Button (visible only to host, on other participants' streams) */}
+              {isCurrentUserHost && !stream.isLocal && (
+                  <button
+                      onClick={() => handleKick(stream.userId)}
+                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 px-3 py-1 rounded-md text-white text-xs font-medium"
+                      title={`Kick ${stream.label}`}
+                  >
+                      Kick
+                  </button>
+              )}
+            </div>
+          );
+        })}
       </div>
   
       {/* Bottom bar for controls */}
