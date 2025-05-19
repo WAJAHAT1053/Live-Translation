@@ -122,6 +122,23 @@ io.on("connection", (socket) => {
           console.warn(`⚠️ Kick request for room ${socket.roomId} failed: Room not found.`);
       }
   });
+
+  // Handle request for host ID
+  socket.on('request-host-id', (roomId) => {
+      console.log(`👑 Received host ID request from ${socket.userId} for room ${roomId}`);
+      if (roomId && rooms.has(roomId)) {
+          const room = rooms.get(roomId);
+          if (room.hostId) {
+              console.log(`✅ Sending host ID ${room.hostId} to ${socket.userId} for room ${roomId}.`);
+              socket.emit('set-host', room.hostId); // Send host ID back to the requester
+          } else {
+              console.log(`ℹ️ Room ${roomId} has no host yet.`);
+              // Optionally, could emit a different event or nothing if no host
+          }
+      } else {
+          console.warn(`⚠️ Host ID request for room ${roomId} failed: Room not found.`);
+      }
+  });
 });
 
 const PORT = 5000;

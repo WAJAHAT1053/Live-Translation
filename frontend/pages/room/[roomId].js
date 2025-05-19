@@ -391,6 +391,12 @@ export default function Room() {
         peer.on("open", (id) => {
           console.log("Peer opened with ID:", id);
           setDebugInfo(prev => ({ ...prev, peerId: id }));
+
+          // Request the current host ID from the backend after peer is open
+          if (socketRef.current && socketRef.current.connected && roomId) {
+              console.log(`🔑 Peer opened, requesting host ID for room ${roomId} from backend.`);
+              socketRef.current.emit('request-host-id', roomId);
+          }
         });
 
         // Handle peer connection
