@@ -15,7 +15,6 @@ export default function Room() {
 
   // Username logic
   const [username, setUsername] = useState("");
-  const [remoteUsername, setRemoteUsername] = useState("");
 
   const [userId] = useState(() => uuidv4());
   const [remoteStream, setRemoteStream] = useState(null);
@@ -250,9 +249,6 @@ export default function Room() {
             sourceText: message.sourceText,
             translatedText: message.translatedText
           }]);
-        },
-        (username) => {
-          setRemoteUsername(username);
         }
       );
 
@@ -279,19 +275,10 @@ export default function Room() {
           conn.on("data", (data) => {
             if (data.type === "username" && data.username) {
               if (data.username !== username) {
-                setRemoteUsername(data.username);
+                setPeerUsernames(prev => ({ ...prev, [conn.peer]: data.username }));
               }
             }
           });
-        });
-
-        // Listen for username from remote peer
-        peer.on("data", (data) => {
-          if (data.type === "username" && data.username) {
-            if (data.username !== username) {
-              setRemoteUsername(data.username);
-            }
-          }
         });
       }
 
@@ -959,7 +946,7 @@ export default function Room() {
     },
     ...(remoteStream ? [{
       ref: remoteVideoRef,
-      label: peerUsernames[remotePeerId] || remoteUsername || 'Other Person',
+      label: peerUsernames[remotePeerId] || 'Other Person',
       ready: connectionStatus === 'connected',
       isLocal: false,
       isRecording: isRemoteRecording,
