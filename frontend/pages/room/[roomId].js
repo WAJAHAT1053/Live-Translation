@@ -1015,7 +1015,8 @@ export default function Room() {
               autoPlay
               playsInline
               muted={stream.isLocal}
-              className={`w-full h-full object-cover ${stream.isLocal ? 'scale-x-[-1]' : 'scale-x-1'}`}
+              style={{ transform: stream.isLocal ? 'scaleX(-1)' : 'scaleX(1)' }}
+              className="w-full h-full object-cover"
             />
             <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
               {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
