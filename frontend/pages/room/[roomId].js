@@ -268,7 +268,7 @@ export default function Room() {
           // setRemotePeerId(conn.peer);
 
           // Send our preferences when we get a new connection
-          setTimeout(sendLanguagePreferences, 1000); // Small delay to ensure connection is ready
+          setTimeout(sendLanguagePreferences, 500); // Small delay to ensure connection is ready (reduced to 500ms)
 
           // Send our username to the remote peer when connection is established
           conn.on("open", () => {
@@ -716,8 +716,8 @@ export default function Room() {
       const audioToPlay = receivedAudios[unplayedIndex];
       
       try {
-        console.log('⏳ Waiting 2 seconds before playing new audio message...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('⏳ Waiting 500ms before playing new audio message...');
+        await new Promise(resolve => setTimeout(resolve, 500)); // Reduced delay to 500ms
 
         console.log('🎵 Attempting to play audio message from:', audioToPlay.timestamp);
         
@@ -833,9 +833,9 @@ export default function Room() {
       // Set the translation data and URL
       setTranslationData(newTranslationData);
       setTranslatedAudioUrl(url);
-      console.log('[TRANSLATE] ⏳ Waiting 2 seconds before auto-sending...');
+      console.log('[TRANSLATE] ⏳ Waiting 500ms before auto-sending...');
       // Wait 2 seconds to show the send button and translation results
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 500)); // Reduced delay to 500ms
       // Ensure translation data is set before sending
       if (!newTranslationData.audioBlob) {
         console.error('[TRANSLATE] ❌ Translation data not properly set');
