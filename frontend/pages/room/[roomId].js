@@ -968,11 +968,24 @@ export default function Room() {
   ];
 
   // Determine grid classes based on number of streams
-  const gridClass = videoStreams.length === 1
-    ? 'grid-cols-1 grid-rows-1'
-    : videoStreams.length === 2
-      ? 'grid-cols-2 grid-rows-1'
-      : 'grid-cols-2 grid-rows-2';
+  const getGridClasses = () => {
+    const count = videoStreams.length;
+    if (count === 1) return 'grid-cols-1 grid-rows-1';
+    if (count === 2) return 'grid-cols-2 grid-rows-1';
+    if (count === 3) return 'grid-cols-3 grid-rows-1';
+    if (count === 4) return 'grid-cols-2 grid-rows-2';
+    if (count <= 6) return 'grid-cols-3 grid-rows-2';
+    if (count <= 9) return 'grid-cols-3 grid-rows-3';
+    return 'grid-cols-4 grid-rows-3';
+  };
+
+  // Get aspect ratio class based on number of streams
+  const getAspectRatioClass = () => {
+    const count = videoStreams.length;
+    if (count === 1) return 'aspect-video';
+    if (count === 2) return 'aspect-video';
+    return 'aspect-square';
+  };
 
   // Always set local video srcObject
   useEffect(() => {
@@ -991,28 +1004,28 @@ export default function Room() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
       {/* Main video grid */}
-      <div className={`flex-1 grid ${gridClass} gap-4 p-6 place-items-center transition-all duration-300`}>
+      <div className={`flex-1 grid ${getGridClasses()} gap-4 p-6 place-items-center transition-all duration-300`}>
         {videoStreams.map((stream, idx) => (
           <div
             key={idx}
-            className="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden"
+            className={`relative w-full ${getAspectRatioClass()} flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden shadow-lg`}
           >
-                <video
+            <video
               ref={stream.ref}
-                  autoPlay
-                  playsInline
+              autoPlay
+              playsInline
               muted={stream.isLocal}
               style={{ transform: 'scaleX(-1)' }}
               className="w-full h-full object-cover"
-                />
+            />
             <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
               {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
-              </div>
+            </div>
             {stream.isRecording && (
-                <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
-                  <span className="mr-1">●</span> Recording
-                </div>
-              )}
+              <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
+                <span className="mr-1">●</span> Recording
+              </div>
+            )}
             {stream.transcript && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
                 <p className="text-white text-sm">{stream.transcript}</p>
