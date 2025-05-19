@@ -268,7 +268,7 @@ export default function Room() {
           // setRemotePeerId(conn.peer);
 
           // Send our preferences when we get a new connection
-          setTimeout(sendLanguagePreferences, 500); // Small delay to ensure connection is ready (reduced to 500ms)
+          setTimeout(sendLanguagePreferences, 10); // Reduced delay to 10ms
 
           // Send our username to the remote peer when connection is established
           conn.on("open", () => {
@@ -276,7 +276,7 @@ export default function Room() {
             // Add a small delay before sending username
             setTimeout(() => {
                 conn.send({ type: "username", username });
-            }, 500);
+            }, 10); // Reduced delay to 10ms
           });
           conn.on("data", (data) => {
             if (data.type === "username" && data.username) {
@@ -317,7 +317,7 @@ export default function Room() {
                                 console.log(`Data connection opened after call stream with ${dataConn.peer}. Sending username.`);
                                 setTimeout(() => {
                                      dataConn.send({ type: 'username', username });
-                                }, 500);
+                                }, 10); // Reduced delay to 10ms
                              });
                              dataConn.on('data', (data) => {
                                 if (data.type === 'username' && data.username) {
@@ -347,7 +347,7 @@ export default function Room() {
                          console.log(`New data connection opened with ${dataConn.peer} from user-connected. Sending username.`);
                           setTimeout(() => {
                                dataConn.send({ type: 'username', username });
-                          }, 500);
+                          }, 10); // Reduced delay to 10ms
                        });
                         dataConn.on('data', (data) => {
                            if (data.type === 'username' && data.username) {
@@ -379,7 +379,7 @@ export default function Room() {
                 console.log(`Data connection opened after answering call with ${dataConn.peer}. Sending username.`);
                  setTimeout(() => {
                      dataConn.send({ type: 'username', username });
-                 }, 500);
+                 }, 10); // Reduced delay to 10ms
               });
               dataConn.on('data', (data) => {
                  if (data.type === 'username' && data.username) {
@@ -411,7 +411,7 @@ export default function Room() {
                console.log(`Peer 'connect' event for ${peerId}. Sending username.`);
                setTimeout(() => {
                     conn.send({ type: 'username', username });
-               }, 500);
+               }, 10); // Reduced delay to 10ms
           }
         });
 
@@ -716,8 +716,8 @@ export default function Room() {
       const audioToPlay = receivedAudios[unplayedIndex];
       
       try {
-        console.log('⏳ Waiting 500ms before playing new audio message...');
-        await new Promise(resolve => setTimeout(resolve, 500)); // Reduced delay to 500ms
+        console.log('⏳ Waiting 10ms before playing new audio message...');
+        await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay to 10ms
 
         console.log('🎵 Attempting to play audio message from:', audioToPlay.timestamp);
         
@@ -833,9 +833,9 @@ export default function Room() {
       // Set the translation data and URL
       setTranslationData(newTranslationData);
       setTranslatedAudioUrl(url);
-      console.log('[TRANSLATE] ⏳ Waiting 500ms before auto-sending...');
+      console.log('[TRANSLATE] ⏳ Waiting 10ms before auto-sending...');
       // Wait 2 seconds to show the send button and translation results
-      await new Promise(resolve => setTimeout(resolve, 500)); // Reduced delay to 500ms
+      await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay to 10ms
       // Ensure translation data is set before sending
       if (!newTranslationData.audioBlob) {
         console.error('[TRANSLATE] ❌ Translation data not properly set');
