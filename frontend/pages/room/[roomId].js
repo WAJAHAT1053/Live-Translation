@@ -1055,6 +1055,7 @@ export default function Room() {
       isLocal: true,
       isRecording,
       transcript,
+      translatedCaption: null, // Local stream doesn't need remote translation captions
     },
     ...(remoteStream ? [{
       ref: remoteVideoRef,
@@ -1063,6 +1064,8 @@ export default function Room() {
       isLocal: false,
       isRecording: isRemoteRecording,
       transcript: remoteTranscript,
+      // Get the latest translated text from receivedAudios for the remote stream caption
+      translatedCaption: receivedAudios.length > 0 ? receivedAudios[receivedAudios.length - 1].translatedText : null,
     }] : [])
   ];
 
@@ -1130,6 +1133,12 @@ export default function Room() {
                 <p className="text-white text-sm">{stream.transcript}</p>
               </div>
             )}
+            {/* Display translated caption for remote stream */}
+            {stream.translatedCaption && !stream.isLocal && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-green-700 bg-opacity-80 rounded-md text-center">
+                    <p className="text-white text-sm">{stream.translatedCaption}</p>
+                </div>
+            )}
           </div>
         ))}
       </div>
@@ -1179,28 +1188,6 @@ export default function Room() {
                 </svg>
               </button>
             </div>
-      </div>
-      {/* Received Audios Section */}
-      <div className="w-full bg-gray-800 p-4 border-t border-gray-700">
-        <h3 className="text-lg font-semibold mb-2">Received Audios</h3>
-        {receivedAudios.length === 0 ? (
-          <p className="text-gray-400 text-sm">No received audios yet.</p>
-        ) : (
-          <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-            {receivedAudios.map((audio, index) => (
-              <div key={index} className="bg-gray-700 p-3 rounded-md">
-                <p className="text-xs text-gray-400">{audio.timestamp}</p>
-                {audio.sourceText && (
-                  <p className="text-sm mt-1"><span className="font-medium">Original ({audio.fromLanguage}):</span> {audio.sourceText}</p>
-                )}
-                {audio.translatedText && (
-                  <p className="text-sm mt-1"><span className="font-medium">Translated ({audio.toLanguage}):</span> {audio.translatedText}</p>
-                )}
-                <audio controls src={audio.url} className="w-full mt-2"></audio>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
