@@ -105,7 +105,7 @@ export default function Room() {
   useEffect(() => {
     const stored = localStorage.getItem('username');
     if (stored) setUsername(stored);
-  }, []);
+  }, []); 
 
   // Get local media with error handling
   useEffect(() => {
