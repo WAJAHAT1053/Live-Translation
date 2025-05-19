@@ -1177,16 +1177,6 @@ export default function Room() {
                       <p className="text-white text-sm">{stream.translatedCaption}</p>
                   </div>
               )}
-              {/* Kick Button (visible only to host, on other participants' streams) */}
-              {isCurrentUserHost && !stream.isLocal && (
-                  <button
-                      onClick={() => handleKick(stream.userId)}
-                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 px-3 py-1 rounded-md text-white text-xs font-medium"
-                      title={`Kick ${stream.label}`}
-                  >
-                      Kick
-                  </button>
-              )}
             </div>
           );
         })}
@@ -1237,6 +1227,16 @@ export default function Room() {
                 </svg>
               </button>
             </div>
+            {/* Kick Button (Visible to host when remote stream is present) */}
+            {userId === hostId && remoteStream && (
+                <button
+                    onClick={() => handleKick(remotePeerId)}
+                    className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-white font-medium"
+                    title="Kick other participant"
+                >
+                    Kick Participant
+                </button>
+            )}
       </div>
     </div>
   );
