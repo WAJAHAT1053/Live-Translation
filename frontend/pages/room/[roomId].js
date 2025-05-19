@@ -1015,8 +1015,7 @@ export default function Room() {
               autoPlay
               playsInline
               muted={stream.isLocal}
-              style={stream.isLocal ? { transform: 'scaleX(-1)' } : {}}
-              className="w-full h-full object-cover"
+              className={`w-full h-full object-cover ${stream.isLocal ? 'scale-x-[-1]' : 'scale-x-1'}`}
             />
             <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
               {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
@@ -1080,6 +1079,28 @@ export default function Room() {
                 </svg>
               </button>
             </div>
+      </div>
+      {/* Received Audios Section */}
+      <div className="w-full bg-gray-800 p-4 border-t border-gray-700">
+        <h3 className="text-lg font-semibold mb-2">Received Audios</h3>
+        {receivedAudios.length === 0 ? (
+          <p className="text-gray-400 text-sm">No received audios yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+            {receivedAudios.map((audio, index) => (
+              <div key={index} className="bg-gray-700 p-3 rounded-md">
+                <p className="text-xs text-gray-400">{audio.timestamp}</p>
+                {audio.sourceText && (
+                  <p className="text-sm mt-1"><span className="font-medium">Original ({audio.fromLanguage}):</span> {audio.sourceText}</p>
+                )}
+                {audio.translatedText && (
+                  <p className="text-sm mt-1"><span className="font-medium">Translated ({audio.toLanguage}):</span> {audio.translatedText}</p>
+                )}
+                <audio controls src={audio.url} className="w-full mt-2"></audio>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
