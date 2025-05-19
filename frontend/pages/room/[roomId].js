@@ -104,7 +104,7 @@ export default function Room() {
   // Log hostId changes
   useEffect(() => {
     console.log('👑 Host ID state updated:', hostId);
-  }, [hostId]);
+  }, [hostId]); 
 
   // On mount, get username from localStorage
   useEffect(() => {
