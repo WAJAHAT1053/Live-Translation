@@ -335,7 +335,7 @@ export default function Room() {
 
   // Setup peer connection with transcript and language preferences handling
   useEffect(() => {
-    if (roomId && socketRef.current && userId && localStreamReady && hostId !== null) {
+    if (roomId && socketRef.current && userId && localStreamReady) {
       console.log('Setting up peer connection with:', {
         roomId,
         userId,
@@ -601,7 +601,7 @@ export default function Room() {
         }
       };
     }
-  }, [roomId, socketRef, userId, localStreamReady, username, hostId]);
+  }, [roomId, socketRef, userId, localStreamReady, username]); // Added dependencies for user-connected logic
 
   // Display remote stream with error handling
   useEffect(() => {
