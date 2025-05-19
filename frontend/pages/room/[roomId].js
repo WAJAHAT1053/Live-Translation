@@ -96,6 +96,12 @@ export default function Room() {
 
   const [peerUsernames, setPeerUsernames] = useState({});
 
+  // Add host and participant management states
+  const [isHost, setIsHost] = useState(false);
+  const [hostId, setHostId] = useState(null);
+  const [participants, setParticipants] = useState([]);
+  const [mutedParticipants, setMutedParticipants] = useState(new Set());
+
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
     console.log("👤 UserID:", userId);
@@ -947,7 +953,57 @@ export default function Room() {
     }
   };
 
-  // Helper to get all video streams (local + remote)
+  // Handle room info from server
+  useEffect(() => {
+    if (socketRef.current) {
+      socketRef.current.on("room-info", (info) => {
+        setIsHost(info.isHost);
+        setHostId(info.hostId);
+        setParticipants(info.participants);
+      });
+
+      socketRef.current.on("host-changed", (newHostId) => {
+        setHostId(newHostId);
+        setIsHost(userId === newHostId);
+      });
+
+      socketRef.current.on("participant-muted", (targetUserId) => {
+        setMutedParticipants(prev => new Set([...prev, targetUserId]));
+      });
+
+      socketRef.current.on("participant-removed", (targetUserId) => {
+        setParticipants(prev => prev.filter(id => id !== targetUserId));
+        if (targetUserId === userId) {
+          router.push('/'); // Redirect to home if removed
+        }
+      });
+
+      socketRef.current.on("room-full", () => {
+        alert("Room is full (maximum 4 participants)");
+        router.push('/');
+      });
+
+      socketRef.current.on("removed-from-room", () => {
+        alert("You have been removed from the room by the host");
+        router.push('/');
+      });
+    }
+  }, [socketRef.current, userId, router]);
+
+  // Host control functions
+  const muteParticipant = (targetUserId) => {
+    if (isHost && socketRef.current) {
+      socketRef.current.emit("mute-participant", targetUserId);
+    }
+  };
+
+  const removeParticipant = (targetUserId) => {
+    if (isHost && socketRef.current) {
+      socketRef.current.emit("remove-participant", targetUserId);
+    }
+  };
+
+  // Modify the videoStreams array to include participant info
   const videoStreams = [
     {
       ref: localVideoRef,
@@ -956,6 +1012,8 @@ export default function Room() {
       isLocal: true,
       isRecording,
       transcript,
+      isHost: isHost,
+      userId: userId,
     },
     ...(remoteStream ? [{
       ref: remoteVideoRef,
@@ -964,6 +1022,9 @@ export default function Room() {
       isLocal: false,
       isRecording: isRemoteRecording,
       transcript: remoteTranscript,
+      isHost: hostId === remotePeerId,
+      userId: remotePeerId,
+      isMuted: mutedParticipants.has(remotePeerId),
     }] : [])
   ];
 
@@ -1020,12 +1081,13 @@ export default function Room() {
                 ref={stream.ref}
                 autoPlay
                 playsInline
-                muted={stream.isLocal}
+                muted={stream.isLocal || stream.isMuted}
                 style={{ transform: 'scaleX(-1)' }}
                 className="w-full h-full object-cover"
               />
               <div className="absolute top-2 left-2 bg-black bg-opacity-60 px-3 py-1 rounded text-xs">
                 {stream.label} {stream.ready ? (stream.isLocal ? '✅' : '') : '⏳'}
+                {stream.isHost && ' 👑'}
               </div>
               {stream.isRecording && (
                 <div className="absolute top-2 right-2 flex items-center bg-red-600 px-2 py-1 rounded-full text-xs animate-pulse">
@@ -1035,6 +1097,29 @@ export default function Room() {
               {stream.transcript && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-900 bg-opacity-70 rounded-md">
                   <p className="text-white text-sm">{stream.transcript}</p>
+                </div>
+              )}
+              {/* Host controls */}
+              {isHost && !stream.isLocal && (
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <button
+                    onClick={() => muteParticipant(stream.userId)}
+                    className={`p-2 rounded-full ${stream.isMuted ? 'bg-red-600' : 'bg-gray-600'}`}
+                    title={stream.isMuted ? "Unmute participant" : "Mute participant"}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => removeParticipant(stream.userId)}
+                    className="p-2 rounded-full bg-red-600"
+                    title="Remove participant"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
               )}
               {/* Translated audio and caption for this user */}
