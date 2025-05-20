@@ -209,9 +209,13 @@ export default function Room() {
 
   // Setup socket event listeners (isolated for critical room events)
   useEffect(() => {
-    if (!socketRef.current) return;
+    console.log('🔌 Attempting to set up critical socket event listeners...');
+    if (!socketRef.current) {
+        console.log('🔌 socketRef.current is not available yet.');
+        return;
+    }
 
-    console.log('🔌 Setting up critical socket event listeners...');
+    console.log('🔌 socketRef.current is available. Setting up critical listeners...');
 
     // Listen for the host ID from the server
     socketRef.current.on('set-host', (hostPeerId) => {
