@@ -1286,6 +1286,17 @@ export default function Room() {
     }
   };
 
+  // Function to handle exiting the meeting
+  const handleExitMeeting = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+    if (peerRef.current) {
+      peerRef.current.destroy();
+    }
+    router.push('/');
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-red-900 text-white">
       {/* Main video grid */}
@@ -1388,6 +1399,14 @@ export default function Room() {
                     Kick Participant
                 </button>
             )}
+            {/* Exit Meeting Button */}
+            <button
+                onClick={handleExitMeeting}
+                className="bg-gray-500 hover:bg-gray-600 px-4 py-2 rounded-md text-white font-medium"
+                title="Leave the meeting"
+            >
+                Exit Meeting
+            </button>
       </div>
     </div>
   );
