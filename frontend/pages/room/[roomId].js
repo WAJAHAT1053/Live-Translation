@@ -96,6 +96,9 @@ export default function Room() {
   const [peerUsernames, setPeerUsernames] = useState({});
   const [hostId, setHostId] = useState(null); // State to store the host's ID
 
+  // New state to track active remote peer IDs based on socket events
+  const [activeRemotePeerIds, setActiveRemotePeerIds] = useState([]);
+
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
     console.log("👤 UserID:", userId);
@@ -234,17 +237,19 @@ export default function Room() {
     // Listen for user-disconnected event
     socketRef.current.on('user-disconnected', (disconnectedUserId) => {
         console.log(`Socket user-disconnected: ${disconnectedUserId}`);
-        // If the disconnected user is our current remote peer, clear their stream and info
+        // Remove disconnected user from active list
+        setActiveRemotePeerIds(prevIds => prevIds.filter(id => id !== disconnectedUserId));
+         // Also clean up their username from the map
+         setPeerUsernames(prev => { delete prev[disconnectedUserId]; return { ...prev }; });
+        console.log(`➖ ${disconnectedUserId} removed from active list. Current active: ${activeRemotePeerIds.filter(id => id !== disconnectedUserId).join(', ')}`);
+
+        // If the disconnected user was the current remote peer, clear the remote stream
         if (disconnectedUserId === remotePeerId) {
-            console.log(`Remote peer ${disconnectedUserId} disconnected. Clearing stream and info.`);
-            setRemoteStream(null);
-            setRemotePeerId(null);
-            setPeerUsernames(prev => { delete prev[disconnectedUserId]; return { ...prev }; });
-            // Optionally, clear remote transcript and caption here if desired
-            setRemoteTranscript('');
+             console.log(`Disconnected user ${disconnectedUserId} was the primary remote peer. Clearing remote stream.`);
+             setRemoteStream(null);
+             setRemotePeerId(null);
+             setRemoteTranscript(''); // Clear their transcript
         }
-         // Handle case for multiple remote users if expanded later
-         // For now, assuming max 2 people.
     });
 
     // Cleanup listeners when socket changes or component unmounts
@@ -283,6 +288,16 @@ export default function Room() {
      socketRef.current.on("user-connected", (remoteUserId) => {
          console.log(`Socket user-connected: ${remoteUserId}. My user ID: ${userId}`);
          if (remoteUserId !== userId) {
+             // Add connected user to active list if not already present
+             setActiveRemotePeerIds(prevIds => {
+                 if (!prevIds.includes(remoteUserId)) {
+                     console.log(`➕ ${remoteUserId} added to active list. Current active: ${[...prevIds, remoteUserId].join(', ')}`);
+                     return [...prevIds, remoteUserId];
+                 }
+                 console.log(`ℹ️ ${remoteUserId} already in active list.`);
+                 return prevIds;
+             });
+
              // Check if a connection already exists to avoid duplicate connections
              if (!peerRef.current || !peerRef.current.connections[remoteUserId] || peerRef.current.connections[remoteUserId].length === 0) {
                   console.log(`Initiating call to ${remoteUserId}`);
@@ -1234,6 +1249,25 @@ export default function Room() {
     }
   };
 
+  // Update remote stream and remotePeerId based on activeRemotePeerIds (for 2-person call)
+  useEffect(() => {
+    if (activeRemotePeerIds.length > 0) {
+        const primaryRemotePeerId = activeRemotePeerIds[0];
+        if (remotePeerId !== primaryRemotePeerId) {
+             console.log(`Active remote peers changed. Setting primary remote peer to: ${primaryRemotePeerId}`);
+             setRemotePeerId(primaryRemotePeerId);
+             // Note: The remoteStream will be set by the PeerJS call handler
+             // We might need to re-initiate call if stream was lost - more complex for multi-user
+             // For 2-person call, the existing call handler should manage setting remoteStream
+        }
+    } else if (remotePeerId !== null) {
+        console.log(`No active remote peers. Clearing remote peer info.`);
+        setRemotePeerId(null);
+        setRemoteStream(null); // Explicitly clear the stream
+        setRemoteTranscript('');
+    }
+  }, [activeRemotePeerIds, remotePeerId]); // Depend on activeRemotePeerIds and remotePeerId
+
   // Helper to get all video streams (local + remote)
   const videoStreams = [
     {
@@ -1246,10 +1280,11 @@ export default function Room() {
       translatedCaption: null, // Local stream doesn't need remote translation captions
       userId: userId, // Add userId to stream data
     },
-    ...(remoteStream ? [{
+    // Include remote stream if remotePeerId and remoteStream are set
+    ...(remotePeerId && remoteStream ? [{
       ref: remoteVideoRef,
       label: peerUsernames[remotePeerId] || 'Other Person',
-      ready: connectionStatus === 'connected',
+      ready: connectionStatus === 'connected', // May need more granular check for multi-user
       isLocal: false,
       isRecording: isRemoteRecording,
       transcript: remoteTranscript,
