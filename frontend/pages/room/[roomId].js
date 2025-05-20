@@ -302,14 +302,14 @@ export default function Room() {
                          if (!peerRef.current.connections[call.peer]?.some(conn => conn.type === 'data')) {
                              const dataConn = peerRef.current.connect(call.peer, { reliable: true });
                              dataConn.on('open', () => {
-                                 setTimeout(() => {
-                                     dataConn.send({ type: 'username', username });
-                                 }, 10); // Reduced delay to 10ms
+                                setTimeout(() => {
+                                    dataConn.send({ type: 'username', username });
+                                }, 10); // Reduced delay to 10ms
                              });
                              dataConn.on('data', (data) => {
-                                 if (data.type === 'username' && data.username) {
-                                     setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
-                                 }
+                                if (data.type === 'username' && data.username) {
+                                    setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
+                                }
                              });
                               dataConn.on('close', () => console.log(`Data connection closed with ${dataConn.peer}.`));
                               dataConn.on('error', (err) => console.error(`Data connection error with ${dataConn.peer}:`, err));
@@ -340,8 +340,8 @@ export default function Room() {
                                 setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
                             }
                          });
-                            dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
-                            dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
+                         dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
+                         dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
                   }
              }
          }
@@ -391,7 +391,7 @@ export default function Room() {
          // If there are no remaining remote peers, reflect that in the UI
          if (peerRef.current) {
              const remainingPeers = Object.keys(peerRef.current.connections).filter(
-                 id => peerRef.current.connections[id].length > 0
+                 id => peerRef.current.connections[id]?.length > 0 // Check length for robustness
              );
              // This check might be redundant if we clear remotePeerId above, but good for clarity
              if (remainingPeers.length === 0) {
@@ -418,16 +418,16 @@ export default function Room() {
 
      // Cleanup other listeners when socket changes or component unmounts
      return () => {
-        console.log('🔌 Cleaning up other socket event listeners...');
-        if (socketRef.current) {
-            socketRef.current.off("connect");
-            socketRef.current.off("disconnect");
-            socketRef.current.off("user-connected");
-            socketRef.current.off("user-disconnected");
-            socketRef.current.off("active-users"); // Add cleanup for new listener
-        }
+       console.log('🔌 Cleaning up other socket event listeners...');
+       if (socketRef.current) {
+         socketRef.current.off("connect");
+         socketRef.current.off("disconnect");
+         socketRef.current.off("user-connected");
+         socketRef.current.off("user-disconnected");
+         socketRef.current.off("active-users");
+       }
      };
-  }, [socketRef.current, userId, roomId, username, localStreamRef, remotePeerId, remoteStream, remoteTranscript, remoteUserLanguages, receivedAudios, peerRef]); // Added dependencies for emissions and other listeners
+  }, [socketRef.current, userId, roomId, username, localStreamRef, remotePeerId, remoteStream, remoteTranscript, remoteUserLanguages, receivedAudios, peerRef]);
 
   // Setup peer connection with transcript and language preferences handling
   useEffect(() => {
@@ -1463,33 +1463,4 @@ export default function Room() {
               </button>
               <button 
                 onClick={toggleVideo}
-                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
-                title={isLocalVideoEnabled ? "Turn off video" : "Turn on video"}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                </svg>
-              </button>
-              {/* Kick Button (Visible to host when remote stream is present) */}
-              {userId === hostId && remoteStream && (
-                  <button
-                      onClick={() => handleKick(remotePeerId)}
-                      className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-white font-medium"
-                      title="Kick other participant"
-                  >
-                      Kick Participant
-                  </button>
-              )}
-            </div>
-             {/* Exit Meeting Button */}
-                <button
-                onClick={handleExitMeeting}
-                className="bg-gray-500 hover:bg-gray-600 px-4 py-2 rounded-md text-white font-medium"
-                title="Leave the meeting"
-             >
-                Exit Meeting
-                </button>
-      </div>
-    </div>
-  );
-}
+                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`
