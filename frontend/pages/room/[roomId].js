@@ -106,6 +106,14 @@ export default function Room() {
     console.log('👑 Host ID state updated:', hostId);
   }, [hostId]); 
 
+  // Log remoteStream changes
+  useEffect(() => {
+    console.log('📺 Remote stream state updated:', remoteStream ? 'Stream available' : 'null');
+    if (!remoteStream) {
+      console.log('📺 Remote stream is null, UI should show single view.');
+    }
+  }, [remoteStream]);
+
   // On mount, get username from localStorage
   useEffect(() => {
     const stored = localStorage.getItem('username');
@@ -339,11 +347,13 @@ export default function Room() {
      // Listen for user-disconnected
      socketRef.current.on("user-disconnected", (disconnectedUserId) => {
        console.log(`🔴 ${disconnectedUserId} disconnected`);
+       console.log(`Current remotePeerId: ${remotePeerId}, Disconnected UserId: ${disconnectedUserId}`);
        // Check if the disconnected user is the current remote peer
        if (disconnectedUserId === remotePeerId) {
-         console.log('📺 Remote peer disconnected, clearing remote stream.');
+         console.log('📺 Disconnected user matches remotePeerId. Clearing remote stream.');
          // Stop remote stream tracks before clearing
          if (remoteStream) {
+           console.log('Stopping remote stream tracks.');
            remoteStream.getTracks().forEach(track => track.stop());
          }
          setRemoteStream(null); // Clear the remote stream
@@ -351,12 +361,13 @@ export default function Room() {
          setRemoteTranscript(''); // Clear remote transcript
          // No need to clear remoteUserLanguages entirely, maybe reset to default or handle per peer ID if multi-user
          // setRemoteUserLanguages([]);
-         console.log('✅ Remote stream and info cleared.');
+         console.log('✅ setRemoteStream(null) called, remotePeerId and transcript cleared.');
        }
         // Clean up the disconnected peer's username from the map regardless of whether they were the primary remote peer
         setPeerUsernames(prev => {
             const newState = { ...prev };
             delete newState[disconnectedUserId];
+            console.log(`👤 Removed ${disconnectedUserId} from peerUsernames.`);
             return newState;
          });
 
