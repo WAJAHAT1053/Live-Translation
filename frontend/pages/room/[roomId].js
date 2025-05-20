@@ -246,10 +246,17 @@ export default function Room() {
         // If the disconnected user was the current remote peer, clear the remote stream
         if (disconnectedUserId === remotePeerId) {
              console.log(`Disconnected user ${disconnectedUserId} was the primary remote peer. Clearing remote stream.`);
+             // Stop remote stream tracks before setting to null to release resources
+             if (remoteStream) {
+                 remoteStream.getTracks().forEach(track => track.stop());
+             }
              setRemoteStream(null);
              setRemotePeerId(null);
              setRemoteTranscript(''); // Clear their transcript
+              console.log('✅ Remote stream and info cleared.');
         }
+         // Handle case for multiple remote users if expanded later
+         // For now, assuming max 2 people.
     });
 
     // Cleanup listeners when socket changes or component unmounts
@@ -298,16 +305,56 @@ export default function Room() {
                  return prevIds;
              });
 
+             // --- Start of added cleanup logic for re-joins ---
+             // If a connection already exists for this peer ID, close it before initiating a new one
+             if (peerRef.current && peerRef.current.connections[remoteUserId]) {
+                 console.log(`Detected existing PeerJS connections for re-joining user ${remoteUserId}. Closing them.`);
+                 peerRef.current.connections[remoteUserId].forEach(conn => {
+                     if (!conn.open) { // Only close if not already open/active, to avoid disrupting a valid existing connection? Maybe always close? Let's try always closing to ensure a clean state.
+                         try {
+                              conn.close();
+                              console.log(`Closed existing PeerJS connection of type ${conn.type} for ${remoteUserId}.`);
+                         } catch (e) {
+                              console.error(`Error closing existing connection for ${remoteUserId}:`, e);
+                         }
+                     } else {
+                          try {
+                                // For open connections, destroy/close might be different or needed
+                                if (conn.type === 'data') {
+                                     conn.close();
+                                     console.log(`Closed open data connection for ${remoteUserId}.`);
+                                } else if (conn.type === 'media') {
+                                     conn.close(); // Media connection might need .close() on the call object itself
+                                     console.log(`Closed open media connection for ${remoteUserId}.`);
+                                }
+                          } catch (e) {
+                               console.error(`Error closing open connection for ${remoteUserId}:`, e);
+                          }
+                     }
+                 });
+                 // Also clear the connections array in PeerJS internal state if possible/needed
+                 // peerRef.current.connections[remoteUserId] = []; // This is internal, better rely on PeerJS methods
+             }
+             // --- End of added cleanup logic for re-joins ---
+
              // Check if a connection already exists to avoid duplicate connections
+             // After attempting cleanup, re-check if a connection exists before calling
              if (!peerRef.current || !peerRef.current.connections[remoteUserId] || peerRef.current.connections[remoteUserId].length === 0) {
                   console.log(`Initiating call to ${remoteUserId}`);
                   // Ensure local stream is ready before calling
                   if (localStreamRef.current) {
                       const call = peerRef.current.call(remoteUserId, localStreamRef.current, { metadata: { username } });
                       if (call) {
+                          console.log(`✅ Call object created for ${remoteUserId}. Setting up handlers.`);
                           call.on("stream", (remoteStream) => {
                               console.log(`Received remote stream from call with ${call.peer}.`);
+                              // Stop previous remote stream tracks if they exist before setting new one
+                              if (remoteVideoRef.current?.srcObject) {
+                                  remoteVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+                                   console.log('🛑 Stopped previous remote stream tracks in setupPeer handler.');
+                              }
                               setRemoteStream(remoteStream);
+                               console.log('📺 Remote stream set in setupPeer handler.');
                               // Also try to establish a data connection if not already present and send username
                               if (!peerRef.current.connections[call.peer] || peerRef.current.connections[call.peer].length === 0 || !peerRef.current.connections[call.peer].some(conn => conn.type === 'data')) {
                                    console.log(`Call stream received, initiating data connection with ${call.peer} to send username.`);
@@ -332,41 +379,15 @@ export default function Room() {
                           });
                            call.on('close', () => console.log(`Call closed with ${call.peer}.`));
                            call.on('error', (err) => console.error(`Call error with ${call.peer}:`, err));
-                      } else {
-                          console.warn(`⚠️ Failed to create call object for ${remoteUserId}.`);
-                      }
-                  } else {
-                      console.warn(`⚠️ Cannot initiate call to ${remoteUserId}: Local stream not ready.`);
-                  }
-              } else {
-                   console.log(`Existing connection to ${remoteUserId} found, not initiating new call.`);
-                   // If connection exists but no data channel yet, try establishing one and sending username
-                   const existingConnections = peerRef.current.connections[remoteUserId];
-                   const dataConnExists = existingConnections.some(conn => conn.type === 'data');
-
-                   if (!dataConnExists) {
-                        console.log(`No data channel found for ${remoteUserId}. Initiating data connection to send username.`);
-                        const dataConn = peerRef.current.connect(remoteUserId, { reliable: true });
-                         dataConn.on('open', () => {
-                           console.log(`New data connection opened with ${dataConn.peer} from user-connected. Sending username.`);
-                            setTimeout(() => {
-                                 dataConn.send({ type: 'username', username });
-                            }, 10); // Reduced delay to 10ms
-                         });
-                          dataConn.on('data', (data) => {
-                             if (data.type === 'username' && data.username) {
-                                 if (data.username !== username) {
-                                      console.log(`Received username data via new dataConn from ${dataConn.peer}: ${data.username}`);
-                                      setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
-                                  }
-                             }
-                          });
-                          dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
-                          dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
-                   }
-              }
-          }
-        });
+                     } else {
+                         console.warn(`⚠️ Failed to create call object for ${remoteUserId}.`);
+                     }
+                 } else {
+                     console.warn(`⚠️ Cannot initiate call to ${remoteUserId}: Local stream not ready or connection already exists.`);
+                 }
+             }
+         }
+       });
 
      // Cleanup other listeners when socket changes or component unmounts
      return () => {
@@ -399,7 +420,13 @@ export default function Room() {
           if (callObj && callObj.metadata && callObj.peer) {
             setPeerUsernames(prev => ({ ...prev, [callObj.peer]: callObj.metadata.username || 'Unknown' }));
           }
+          // Stop previous remote stream tracks if they exist before setting new one
+          if (remoteVideoRef.current?.srcObject) {
+              remoteVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+               console.log('🛑 Stopped previous remote stream tracks in setupPeer handler.');
+          }
           setRemoteStream(stream);
+           console.log('📺 Remote stream set in setupPeer handler.');
         },
         (text) => {
           console.log('Received transcript:', text);
@@ -452,7 +479,7 @@ export default function Room() {
           // setRemotePeerId(conn.peer);
 
           // Send our preferences when we get a new connection
-          setTimeout(sendLanguagePreferences, 10); // Reduced delay to 10ms
+          setTimeout(sendLanguagePreferences, 500); // Small delay to ensure connection is ready
 
           // Send our username to the remote peer when connection is established
           conn.on("open", () => {
@@ -479,181 +506,128 @@ export default function Room() {
             console.error(`Data connection error with ${conn.peer}:`, err);
           });
         });
-      }
 
-      // Patch outgoing call to send username as metadata
-      socketRef.current.on("user-connected", (remoteUserId) => {
-        console.log(`Socket user-connected: ${remoteUserId}. My user ID: ${userId}`);
-        if (remoteUserId !== userId) {
-            // Check if a connection already exists to avoid duplicate connections
-            if (!peer.connections[remoteUserId] || peer.connections[remoteUserId].length === 0) {
-                console.log(`Initiating call to ${remoteUserId}`);
-                const call = peer.call(remoteUserId, localStreamRef.current, { metadata: { username } });
-                if (call) {
-                    call.on("stream", (remoteStream) => {
-                        console.log(`Received remote stream from call with ${call.peer}.`);
-                        setRemoteStream(remoteStream);
-                        // Also try to establish a data connection if not already present and send username
-                        if (!peer.connections[call.peer] || peer.connections[call.peer].length === 0) {
-                             console.log(`Call stream received, initiating data connection with ${call.peer} to send username.`);
-                             const dataConn = peer.connect(call.peer, { reliable: true });
-                             dataConn.on('open', () => {
-                                console.log(`Data connection opened after call stream with ${dataConn.peer}. Sending username.`);
-                                setTimeout(() => {
-                                     dataConn.send({ type: 'username', username });
-                                }, 10); // Reduced delay to 10ms
-                             });
-                             dataConn.on('data', (data) => {
-                                if (data.type === 'username' && data.username) {
-                                    if (data.username !== username) {
-                                         console.log(`Received username data via dataConn from ${dataConn.peer}: ${data.username}`);
-                                         setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
-                                     }
-                                }
-                             });
-                             dataConn.on('close', () => console.log(`Data connection closed after call stream with ${dataConn.peer}.`));
-                             dataConn.on('error', (err) => console.error(`Data connection error after call stream with ${dataConn.peer}:`, err));
-                        }
+        // When receiving a call, after answering, send our username back via data connection
+        peer.on('call', (call) => {
+          console.log(`📞 Incoming call from ${call.peer}.`);
+          // Check if we already have a stream from this peer (re-joining scenario)
+          if (remoteVideoRef.current?.srcObject && remotePeerId === call.peer) {
+               console.log(`ℹ️ Already have stream from ${call.peer}, answering call anyway.`);
+               // --- Start of added cleanup logic before answering re-join call ---
+               // If we receive a call from a peer we already have a connection/stream for,
+               // it might be a re-join. Explicitly close existing connections for this peer
+               // before answering the new call to prevent conflicts.
+               if (peerRef.current && peerRef.current.connections[call.peer]) {
+                    console.log(`Detected existing PeerJS connections for incoming call from re-joining user ${call.peer}. Closing them before answering.`);
+                    peerRef.current.connections[call.peer].forEach(conn => {
+                         try {
+                              conn.close();
+                              console.log(`Closed existing PeerJS connection of type ${conn.type} for ${call.peer} before answering.`);
+                         } catch (e) {
+                              console.error(`Error closing existing connection for ${call.peer} before answering:`, e);
+                         }
                     });
-                     call.on('close', () => console.log(`Call closed with ${call.peer}.`));
-                     call.on('error', (err) => console.error(`Call error with ${call.peer}:`, err));
-                }
-            } else {
-                 console.log(`Existing connection to ${remoteUserId} found, not initiating new call.`);
-                 // If connection exists but no data channel yet, try establishing one and sending username
-                 const existingConnections = peer.connections[remoteUserId];
-                 const dataConnExists = existingConnections.some(conn => conn.type === 'data');
-
-                 if (!dataConnExists) {
-                      console.log(`No data channel found for ${remoteUserId}. Initiating data connection to send username.`);
-                      const dataConn = peer.connect(remoteUserId, { reliable: true });
-                       dataConn.on('open', () => {
-                         console.log(`New data connection opened with ${dataConn.peer} from user-connected. Sending username.`);
-                          setTimeout(() => {
-                               dataConn.send({ type: 'username', username });
-                            }, 10); // Reduced delay to 10ms
-                       });
-                        dataConn.on('data', (data) => {
-                           if (data.type === 'username' && data.username) {
-                               if (data.username !== username) {
-                                    console.log(`Received username data via new dataConn from ${dataConn.peer}: ${data.username}`);
-                                    setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
-                                }
+               }
+               // --- End of added cleanup logic before answering re-join call ---
+          }
+          
+          if (localStreamRef.current) {
+            call.answer(localStreamRef.current);
+            console.log(`✅ Answering call from ${call.peer}.`);
+            call.on("stream", (remoteStream) => {
+              console.log(`📺 Got remote stream from answered call with ${call.peer}.`);
+               // Stop previous remote stream tracks if they exist before setting new one
+               if (remoteVideoRef.current?.srcObject) {
+                   remoteVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+                    console.log('🛑 Stopped previous remote stream tracks from answered call.');
+               }
+              setRemoteStream(remoteStream);
+               setRemotePeerId(call.peer); // Set remote peer ID when stream is received
+                console.log('📺 Remote stream and ID set from answered call.');
+            });
+            // Open a data connection back to the caller and send our username if one doesn't exist
+            if (!peer.connections[call.peer] || peer.connections[call.peer].length === 0 || !peer.connections[call.peer].some(conn => conn.type === 'data')) {
+                 console.log(`Answering call, initiating data connection with ${call.peer} to send username.`);
+                 const dataConn = peer.connect(call.peer, { reliable: true });
+                  dataConn.on('open', () => {
+                    console.log(`Data connection opened after answering call with ${dataConn.peer}. Sending username.`);
+                     setTimeout(() => {
+                         dataConn.send({ type: 'username', username });
+                     }, 10); // Reduced delay to 10ms
+                  });
+                  dataConn.on('data', (data) => {
+                     if (data.type === 'username' && data.username) {
+                         if (data.username !== username) {
+                              console.log(`Received username data via dataConn from ${dataConn.peer}: ${data.username}`);
+                              setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
                            }
-                        });
-                        dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
-                        dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
-                 }
+                       }
+                   });
+                   dataConn.on('close', () => console.log(`Data connection closed after answering call with ${dataConn.peer}.`));
+                   dataConn.on('error', (err) => console.error(`Data connection error after answering call with ${dataConn.peer}:`, err));
             }
-        }
-      });
 
-      // When receiving a call, after answering, send our username back via data connection
-      peer.on('call', (call) => {
-        console.log(`Received call from ${call.peer}.`);
-        call.on('stream', (remoteStream) => {
-          console.log(`Received remote stream from incoming call with ${call.peer}.`);
-          setRemoteStream(remoteStream);
-        });
-        // Open a data connection back to the caller and send our username if one doesn't exist
-        if (!peer.connections[call.peer] || peer.connections[call.peer].length === 0 || !peer.connections[call.peer].some(conn => conn.type === 'data')) {
-             console.log(`Answering call, initiating data connection with ${call.peer} to send username.`);
-             const dataConn = peer.connect(call.peer, { reliable: true });
-              dataConn.on('open', () => {
-                console.log(`Data connection opened after answering call with ${dataConn.peer}. Sending username.`);
-                 setTimeout(() => {
-                     dataConn.send({ type: 'username', username });
-                 }, 10); // Reduced delay to 10ms
-              });
-              dataConn.on('data', (data) => {
-                 if (data.type === 'username' && data.username) {
-                     if (data.username !== username) {
-                          console.log(`Received username data via dataConn from ${dataConn.peer}: ${data.username}`);
-                          setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
-                      }
-                 }
-              });
-               dataConn.on('close', () => console.log(`Data connection closed after answering call with ${dataConn.peer}.`));
-               dataConn.on('error', (err) => console.error(`Data connection error after answering call with ${dataConn.peer}:`, err));
-        }
-
-         call.on('close', () => console.log(`Incoming call closed with ${call.peer}.`));
-         call.on('error', (err) => console.error(`Incoming call error with ${call.peer}:`, err));
-      });
-
-      // When receiving a username via data connection, update the mapping
-      // This listener is already present within peer.on('connection'), keeping for robustness
-      // peer.on('connection', (conn) => { ... conn.on('data', ...) ... });
-
-      // Add connection status logging
-      if (peer) {
-        peer.on('connect', (peerId) => {
-          console.log('🔌 Peer connected:', peerId);
-          // Attempt to send username again after a peer connection is fully established
-          const conn = peer.connections[peerId]?.find(c => c.type === 'data');
-          if (conn && conn.open) {
-               console.log(`Peer 'connect' event for ${peerId}. Sending username.`);
-               setTimeout(() => {
-                    conn.send({ type: 'username', username });
-               }, 10); // Reduced delay to 10ms
+             call.on('close', () => console.log(`Incoming call closed with ${call.peer}.`));
+             call.on('error', (err) => console.error(`Incoming call error with ${call.peer}:`, err));
+          } else {
+              console.warn('⚠️ Cannot answer call: Local stream not ready.');
           }
         });
 
-        peer.on('disconnect', (peerId) => {
-          console.log('🔌 Peer disconnected:', peerId);
-          // Optional: remove peer from peerUsernames on disconnect
-          setPeerUsernames(prev => { delete prev[peerId]; return { ...prev }; });
+        // When receiving a username via data connection, update the mapping
+        // This listener is already present within peer.on('connection'), keeping for robustness
+        // peer.on('connection', (conn) => { ... conn.on('data', ...) ... });
+
+        // Add connection status logging
+        if (peer) {
+          peer.on('connect', (peerId) => {
+            console.log('🔌 Peer connected:', peerId);
+            // Attempt to send username again after a peer connection is fully established
+            const conn = peer.connections[peerId]?.find(c => c.type === 'data');
+            if (conn && conn.open) {
+                 console.log(`Peer 'connect' event for ${peerId}. Sending username.`);
+                 setTimeout(() => {
+                      conn.send({ type: 'username', username });
+                 }, 10); // Reduced delay to 10ms
+            }
+          });
+
+          peer.on('disconnect', (peerId) => {
+            console.log('🔌 Peer disconnected:', peerId);
+            // Note: This PeerJS disconnect might not always fire reliably on page close
+            // Relying more on socket user-disconnected for state cleanup
+            // Optional: remove peer from peerUsernames on disconnect (handled by socket event now)
+            // setPeerUsernames(prev => { delete prev[peerId]; return { ...prev }; });
+          });
+
+          peer.on('error', (error) => {
+            console.error('❌ Peer connection error:', error);
+            setDebugInfo(prev => ({ ...prev, lastError: `Peer error: ${error.message}` }));
+          });
+        }
+
+        // Update debug info when socket connects
+        if (socketRef.current.connected) {
+          setDebugInfo(prev => ({ ...prev, socketConnected: true }));
+        }
+
+        socketRef.current.on("connect", () => {
+          console.log("🔌 Socket connected");
+          setDebugInfo(prev => ({ ...prev, socketConnected: true }));
+           // Emit join-room here once socket is confirmed connected
+           if (roomId && userId) {
+               console.log(`Attempting to join room ${roomId} with user ${userId} after socket connect.`);
+               socketRef.current.emit("join-room", roomId, userId);
+           }
         });
 
-        peer.on('error', (error) => {
-          console.error('❌ Peer connection error:', error);
-          setDebugInfo(prev => ({ ...prev, lastError: `Peer error: ${error.message}` }));
+        socketRef.current.on("disconnect", (reason) => {
+          console.log("🔌 Socket disconnected:", reason);
+          setDebugInfo(prev => ({ ...prev, socketConnected: false }));
         });
       }
-
-      // Update debug info when socket connects
-      if (socketRef.current.connected) {
-        setDebugInfo(prev => ({ ...prev, socketConnected: true }));
-      }
-
-      socketRef.current.on("connect", () => {
-        setDebugInfo(prev => ({ ...prev, socketConnected: true }));
-      });
-
-      socketRef.current.on("disconnect", (reason) => {
-        console.log("🔌 Socket disconnected:", reason);
-        setDebugInfo(prev => ({ ...prev, socketConnected: false }));
-      });
-
-      // Listen for the host ID from the server
-      socketRef.current.on('set-host', (hostPeerId) => {
-        console.log(`👑 Received host ID: ${hostPeerId}`);
-        setHostId(hostPeerId);
-      });
-
-      // Listen for kick event
-      socketRef.current.on('user-kicked', (kickedUserId) => {
-        console.log(`🥾 User kicked: ${kickedUserId}`);
-        if (kickedUserId === userId) {
-          alert('You have been kicked from the room.');
-          // Disconnect peer and socket and navigate away
-          if (peerRef.current) peerRef.current.destroy();
-          if (socketRef.current) socketRef.current.disconnect();
-          router.push('/'); // Redirect to home page or a kicked page
-        }
-      });
-
-      // Cleanup function
-      return () => {
-        if (peerRef.current) {
-          peerRef.current.destroy();
-        }
-        if (remoteStream) {
-          remoteStream.getTracks().forEach(track => track.stop());
-        }
-      };
     }
-  }, [roomId, socketRef, userId, localStreamReady, username]); // Added dependencies for user-connected logic
+  }, [roomId, socketRef, userId, localStreamReady, username]); // Added username and localStreamReady dependencies
 
   // Display remote stream with error handling
   useEffect(() => {
