@@ -55,6 +55,7 @@ export default function Room() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [remotePeerId, setRemotePeerId] = useState(null);
+
   const localStreamRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -1298,10 +1299,9 @@ export default function Room() {
       translatedCaption: null, // Local stream doesn't need remote translation captions
       userId: userId, // Add userId to stream data
     },
-    ...(participantCount === 2 && remoteStream && remotePeerId ? [{
+    ...(participantCount === 2 && remoteStream ? [{
       ref: remoteVideoRef,
-      // Use peerUsernames to get the remote user's label, with a fallback
-      label: peerUsernames[remotePeerId] || 'Connecting...', // Display 'Connecting...' if username is not yet available for this peer ID
+      label: peerUsernames[remotePeerId] || 'Other Person',
       ready: connectionStatus === 'connected',
       isLocal: false,
       isRecording: isRemoteRecording,
@@ -1367,104 +1367,66 @@ export default function Room() {
     router.push('/');
   };
 
-  // Handle peer connections and calls
   useEffect(() => {
     if (!peerRef.current || !localStreamRef.current) return;
 
-    const handleCall = (call) => {
+    // Handle incoming calls
+    peerRef.current.on('call', (call) => {
       console.log('Received call from:', call.peer);
-      // Answer the call with our local stream and username
-      call.answer(localStreamRef.current, { metadata: { username } });
-
-      // When the remote stream arrives for an incoming call
+      call.answer(localStreamRef.current);
+      
       call.on('stream', (remoteStream) => {
-        console.log('Received remote stream from call:', call.peer);
+        console.log('Received remote stream from:', call.peer);
         setRemoteStream(remoteStream);
         setRemotePeerId(call.peer);
         setParticipantCount(2);
-
-        // Username is expected via data channel, which is handled by peer.on('connection')
-        // We don't strictly need to process metadata username here.
       });
 
-       call.on('close', () => console.log(`Incoming call closed with ${call.peer}.`));
-       call.on('error', (err) => console.error(`Incoming call error with ${call.peer}:`, err));
-    };
+      call.on('close', () => {
+        console.log('Call closed with:', call.peer);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
 
-    const handleConnection = (conn) => {
-      console.log('Peer connection established with:', conn.peer);
+      call.on('error', (err) => {
+        console.error('Call error:', err);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
+    });
 
-      // Send our username to the remote peer when connection is established
-       conn.on('open', () => {
-         console.log(`Data connection opened with ${conn.peer}. Sending username.`);
-          // Add a small delay before sending username
-          setTimeout(() => {
-              conn.send({ type: 'username', username });
-               console.log(`Sent username ${username} via data channel to ${conn.peer} on connection open.`);
-          }, 10); // Add a 100ms delay
-       });
+    // Make call to existing peer
+    if (remotePeerId && !remoteStream) {
+      console.log('Making call to:', remotePeerId);
+      const call = peerRef.current.call(remotePeerId, localStreamRef.current);
+      
+      call.on('stream', (remoteStream) => {
+        console.log('Received remote stream from call to:', remotePeerId);
+        setRemoteStream(remoteStream);
+        setParticipantCount(2);
+      });
 
-      // Listen for incoming data, including usernames
-      conn.on('data', (data) => {
-        if (data.type === 'username') {
-          console.log('Received username data via data channel:', conn.peer, data.username);
-          // Update peerUsernames with received username using the peer ID from the connection immediately
-            setPeerUsernames(prev => ({
-              ...prev,
-              [conn.peer]: data.username
-            }));
-            console.log(`Updated peerUsernames from connection data for ${conn.peer}: ${data.username}`);
-          }
-        });
-       conn.on('close', () => console.log(`Data connection closed with ${conn.peer}.`));
-        conn.on('error', (err) => console.error(`Data connection error with ${conn.peer}:`, err));
-    };
+      call.on('close', () => {
+        console.log('Call closed with:', remotePeerId);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
 
-    const handleUserJoined = async (userId) => {
-      console.log('User joined, making call to:', userId);
-      try {
-        // Make call with username in metadata (as a hint, primary exchange via data channel)
-        const call = peerRef.current.call(userId, localStreamRef.current, { metadata: { username } });
-        if (call) {
-           call.on('stream', (remoteStream) => {
-            console.log('Received remote stream from outgoing call:', userId);
-            setRemoteStream(remoteStream);
-            setRemotePeerId(userId);
-            setParticipantCount(2);
-             // Expect username via data channel from the remote peer's answer/connection
-             // No need to process metadata username here.
-          });
-           call.on('open', () => {
-             console.log(`Outgoing call to ${userId} opened. Data channel should be handled by peer.on('connection').`);
-             // A data connection should be automatically established or be available via peer.on('connection')
-           });
-        } else {
-             console.warn(`⚠️ Failed to create call object for ${userId}.`);
-        }
-      } catch (error) {
-        console.error('Error making call:', error);
-      }
-    };
-
-    // Setup listeners
-    // Ensure peer.on('connection') is set up to handle all incoming data connections
-    peerRef.current.on('call', handleCall);
-    peerRef.current.on('connection', handleConnection); // Keep this listener for all data connections
-    socketRef.current.on('user-joined', handleUserJoined);
+      call.on('error', (err) => {
+        console.error('Call error:', err);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
+    }
 
     return () => {
-      console.log('Cleaning up peer and socket listeners...');
-      // Remove specific named listeners
-      if (peerRef.current) {
-        peerRef.current.off('call', handleCall);
-        // Explicitly remove the connection listener to prevent duplicates on re-renders
-        peerRef.current.off('connection', handleConnection);
-      }
-      if (socketRef.current) {
-        socketRef.current.off('user-joined', handleUserJoined);
-      }
+      peerRef.current.removeAllListeners('call');
     };
-  }, [peerRef.current, localStreamRef.current, socketRef.current, username]); // remotePeerId is used for display logic, not listener setup
+  }, [peerRef.current, localStreamRef.current, remotePeerId, remoteStream]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
