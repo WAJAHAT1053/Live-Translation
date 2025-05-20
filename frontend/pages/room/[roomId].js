@@ -318,11 +318,29 @@ export default function Room() {
                                            }
                                       }
                                    });
-                                   dataConn.on('close', () => console.log(`Data connection closed after call stream with ${dataConn.peer}.`));
+                                   dataConn.on('close', () => {
+                                      console.log(`🚪 Data connection closed with ${dataConn.peer}.`);
+                                      if (dataConn.peer === remotePeerId) {
+                                           console.log(`PeerJS DataConnection closed for remote peer ${dataConn.peer}. Clearing remote stream state.`);
+                                           setRemoteStream(null);
+                                           setRemotePeerId(null);
+                                           setPeerUsernames(prev => { delete prev[dataConn.peer]; return { ...prev }; });
+                                           setRemoteTranscript('');
+                                      }
+                                   });
                                    dataConn.on('error', (err) => console.error(`Data connection error after call stream with ${dataConn.peer}:`, err));
                               }
                           });
-                           call.on('close', () => console.log(`Call closed with ${call.peer}.`));
+                           call.on('close', () => {
+                               console.log(`Call closed with ${call.peer}.`);
+                               if (call.peer === remotePeerId) {
+                                   console.log(`PeerJS Call closed for remote peer ${call.peer}. Clearing remote stream state.`);
+                                    setRemoteStream(null);
+                                    setRemotePeerId(null);
+                                    setPeerUsernames(prev => { delete prev[call.peer]; return { ...prev }; });
+                                    setRemoteTranscript('');
+                               }
+                           });
                            call.on('error', (err) => console.error(`Call error with ${call.peer}:`, err));
                       } else {
                           console.warn(`⚠️ Failed to create call object for ${remoteUserId}.`);
@@ -353,7 +371,16 @@ export default function Room() {
                                   }
                              }
                           });
-                          dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
+                          dataConn.on('close', () => {
+                               console.log(`New data connection closed with ${dataConn.peer}.`);
+                                if (dataConn.peer === remotePeerId) {
+                                    console.log(`PeerJS new DataConnection closed for remote peer ${dataConn.peer}. Clearing remote stream state.`);
+                                    setRemoteStream(null);
+                                    setRemotePeerId(null);
+                                    setPeerUsernames(prev => { delete prev[dataConn.peer]; return { ...prev }; });
+                                    setRemoteTranscript('');
+                                }
+                          });
                           dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
                    }
               }
@@ -440,11 +467,26 @@ export default function Room() {
         // Handle peer connection
         peer.on("connection", (conn) => {
           console.log("New peer connection:", conn.peer);
-          // Do not set remotePeerId here directly, let the call handle it or find from connections map
-          // setRemotePeerId(conn.peer);
+
+          // Ensure data connection close also clears remote stream state
+          conn.on('close', () => {
+            console.log(`🚪 Data connection closed with ${conn.peer}.`);
+            if (conn.peer === remotePeerId) {
+                 console.log(`PeerJS DataConnection closed for remote peer ${conn.peer}. Clearing remote stream state.`);
+                 setRemoteStream(null);
+                 setRemotePeerId(null);
+                 setPeerUsernames(prev => { delete prev[conn.peer]; return { ...prev }; });
+                 setRemoteTranscript('');
+            }
+             // Optional: remove peer from peerUsernames on close
+             // setPeerUsernames(prev => { delete prev[conn.peer]; return { ...prev }; });
+          });
+          conn.on('error', (err) => {
+            console.error(`Data connection error with ${conn.peer}:`, err);
+          });
 
           // Send our preferences when we get a new connection
-          setTimeout(sendLanguagePreferences, 10); // Reduced delay to 10ms
+          setTimeout(sendLanguagePreferences, 500); // Small delay to ensure connection is ready (reduced to 500ms)
 
           // Send our username to the remote peer when connection is established
           conn.on("open", () => {
@@ -461,14 +503,6 @@ export default function Room() {
                 setPeerUsernames(prev => ({ ...prev, [conn.peer]: data.username })); // Update peerUsernames map
               }
             }
-          });
-           conn.on('close', () => {
-            console.log(`Data connection closed with ${conn.peer}.`);
-            // Optional: remove peer from peerUsernames on close
-            // setPeerUsernames(prev => { delete prev[conn.peer]; return { ...prev }; });
-          });
-          conn.on('error', (err) => {
-            console.error(`Data connection error with ${conn.peer}:`, err);
           });
         });
       }
@@ -503,11 +537,29 @@ export default function Room() {
                                      }
                                 }
                              });
-                             dataConn.on('close', () => console.log(`Data connection closed after call stream with ${dataConn.peer}.`));
+                             dataConn.on('close', () => {
+                                  console.log(`Data connection closed after call stream with ${dataConn.peer}.`);
+                                   if (dataConn.peer === remotePeerId) {
+                                       console.log(`PeerJS DataConnection closed after call for remote peer ${dataConn.peer}. Clearing remote stream state.`);
+                                       setRemoteStream(null);
+                                       setRemotePeerId(null);
+                                       setPeerUsernames(prev => { delete prev[dataConn.peer]; return { ...prev }; });
+                                       setRemoteTranscript('');
+                                   }
+                             });
                              dataConn.on('error', (err) => console.error(`Data connection error after call stream with ${dataConn.peer}:`, err));
                         }
                     });
-                     call.on('close', () => console.log(`Call closed with ${call.peer}.`));
+                     call.on('close', () => {
+                         console.log(`Call closed with ${call.peer}.`);
+                         if (call.peer === remotePeerId) {
+                              console.log(`PeerJS Call closed for remote peer ${call.peer}. Clearing remote stream state.`);
+                               setRemoteStream(null);
+                               setRemotePeerId(null);
+                               setPeerUsernames(prev => { delete prev[call.peer]; return { ...prev }; });
+                               setRemoteTranscript('');
+                         }
+                     });
                      call.on('error', (err) => console.error(`Call error with ${call.peer}:`, err));
                 }
             } else {
@@ -533,7 +585,16 @@ export default function Room() {
                                 }
                            }
                         });
-                        dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
+                        dataConn.on('close', () => {
+                              console.log(`New data connection closed with ${dataConn.peer}.`);
+                               if (dataConn.peer === remotePeerId) {
+                                   console.log(`PeerJS new DataConnection closed for remote peer ${dataConn.peer}. Clearing remote stream state.`);
+                                   setRemoteStream(null);
+                                   setRemotePeerId(null);
+                                   setPeerUsernames(prev => { delete prev[dataConn.peer]; return { ...prev }; });
+                                   setRemoteTranscript('');
+                               }
+                         });
                         dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
                  }
             }
@@ -565,11 +626,29 @@ export default function Room() {
                       }
                  }
               });
-               dataConn.on('close', () => console.log(`Data connection closed after answering call with ${dataConn.peer}.`));
+               dataConn.on('close', () => {
+                   console.log(`Data connection closed after answering call with ${dataConn.peer}.`);
+                    if (dataConn.peer === remotePeerId) {
+                        console.log(`PeerJS DataConnection closed after answering call for remote peer ${dataConn.peer}. Clearing remote stream state.`);
+                        setRemoteStream(null);
+                        setRemotePeerId(null);
+                        setPeerUsernames(prev => { delete prev[dataConn.peer]; return { ...prev }; });
+                        setRemoteTranscript('');
+                    }
+               });
                dataConn.on('error', (err) => console.error(`Data connection error after answering call with ${dataConn.peer}:`, err));
         }
 
-         call.on('close', () => console.log(`Incoming call closed with ${call.peer}.`));
+         call.on('close', () => {
+             console.log(`Incoming call closed with ${call.peer}.`);
+             if (call.peer === remotePeerId) {
+                  console.log(`PeerJS Incoming Call closed for remote peer ${call.peer}. Clearing remote stream state.`);
+                  setRemoteStream(null);
+                  setRemotePeerId(null);
+                  setPeerUsernames(prev => { delete prev[call.peer]; return { ...prev }; });
+                  setRemoteTranscript('');
+             }
+         });
          call.on('error', (err) => console.error(`Incoming call error with ${call.peer}:`, err));
       });
 
