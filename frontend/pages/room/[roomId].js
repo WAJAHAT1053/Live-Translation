@@ -95,7 +95,7 @@ export default function Room() {
 
   const [peerUsernames, setPeerUsernames] = useState({});
   const [hostId, setHostId] = useState(null); // State to store the host's ID
-  const [hasRemoteUser, setHasRemoteUser] = useState(false); // Flag to track if there is a remote user
+  const [participantCount, setParticipantCount] = useState(1); // State to track number of participants (initially 1 for local)
 
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
@@ -343,7 +343,7 @@ export default function Room() {
                    }
               }
           }
-          setHasRemoteUser(true); // Set flag when a user connects
+          setParticipantCount(prevCount => Math.min(2, prevCount + 1)); // Increment participant count (max 2 for 1-to-1)
         });
 
      // Listen for user-disconnected
@@ -382,9 +382,9 @@ export default function Room() {
 
                console.log(`Remaining connected peers after ${disconnectedUserId} left:`, connectedPeers);
 
-               // If no remote peers are left, explicitly clear all remote-related states and set hasRemoteUser to false
+               // If no remote peers are left, explicitly clear all remote-related states and set participantCount to 1
                if (connectedPeers.length === 0) {
-                   console.log('👤 No more remote peers remaining. Resetting all remote-related UI states and setting hasRemoteUser to false.');
+                   console.log('👤 No more remote peers remaining. Resetting all remote-related UI states and setting participantCount to 1.');
                    if (remoteStream) { // Stop tracks if there was a stream
                         remoteStream.getTracks().forEach(track => track.stop());
                    }
@@ -393,12 +393,12 @@ export default function Room() {
                    setRemoteTranscript('');
                    setRemoteUserLanguages({}); // Reset remote user languages
                    setReceivedAudios([]); // Clear received audios
-                   setHasRemoteUser(false); // Set flag to false
-                    console.log('✅ All remote-related states cleared, hasRemoteUser is false.');
+                   setParticipantCount(1); // Set count to 1
+                    console.log('✅ All remote-related states cleared, participantCount is 1.');
                } else {
-                   // If there are still remote peers, ensure hasRemoteUser is true (important for multi-user)
-                   setHasRemoteUser(true);
-                   console.log('Still remote peers remaining, ensuring hasRemoteUser is true.');
+                   // If there are still remote peers, ensure participantCount is 2 (for 1-to-many in future)
+                   if (participantCount === 1) setParticipantCount(2); // Only increment if currently 1
+                    console.log('Still remote peers remaining, ensuring participantCount reflects this.');
                }
            }
        }, 100); // Small delay to check connections after PeerJS potential cleanup
@@ -1299,7 +1299,7 @@ export default function Room() {
       translatedCaption: null, // Local stream doesn't need remote translation captions
       userId: userId, // Add userId to stream data
     },
-    ...(hasRemoteUser && remoteStream ? [{
+    ...(participantCount === 2 && remoteStream ? [{
       ref: remoteVideoRef,
       label: peerUsernames[remotePeerId] || 'Other Person',
       ready: connectionStatus === 'connected',
