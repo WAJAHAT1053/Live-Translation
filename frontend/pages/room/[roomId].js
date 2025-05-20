@@ -1367,6 +1367,60 @@ export default function Room() {
     router.push('/');
   };
 
+  // Handle peer connections and calls
+  useEffect(() => {
+    if (!peerRef.current || !localStreamRef.current) return;
+
+    const handleCall = (call) => {
+      console.log('Received call from:', call.peer);
+      call.answer(localStreamRef.current);
+      call.on('stream', (remoteStream) => {
+        console.log('Received remote stream from call:', call.peer);
+        setRemoteStream(remoteStream);
+        setRemotePeerId(call.peer);
+        setParticipantCount(2);
+      });
+    };
+
+    const handleConnection = (conn) => {
+      console.log('Peer connection established with:', conn.peer);
+      conn.on('data', (data) => {
+        if (data.type === 'username') {
+          console.log('Received username from peer:', conn.peer, data.username);
+          setPeerUsernames(prev => ({
+            ...prev,
+            [conn.peer]: data.username
+          }));
+        }
+      });
+    };
+
+    const handleUserJoined = async (userId) => {
+      console.log('User joined, making call to:', userId);
+      try {
+        const call = peerRef.current.call(userId, localStreamRef.current);
+        call.on('stream', (remoteStream) => {
+          console.log('Received remote stream from outgoing call:', userId);
+          setRemoteStream(remoteStream);
+          setRemotePeerId(userId);
+          setParticipantCount(2);
+        });
+      } catch (error) {
+        console.error('Error making call:', error);
+      }
+    };
+
+    peerRef.current.on('call', handleCall);
+    peerRef.current.on('connection', handleConnection);
+    socketRef.current.on('user-joined', handleUserJoined);
+
+    return () => {
+      peerRef.current.off('call', handleCall);
+      peerRef.current.off('connection', handleConnection);
+      socketRef.current.off('user-joined', handleUserJoined);
+    };
+  }, [peerRef.current, localStreamRef.current, socketRef.current]);
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
       {/* Main video grid */}
