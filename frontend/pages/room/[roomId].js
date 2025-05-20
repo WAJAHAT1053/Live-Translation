@@ -1298,7 +1298,7 @@ export default function Room() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-red-900 text-white">
+    <div className="flex flex-col min-h-screen bg-gray-900 text-white">
       {/* Main video grid */}
       <div className={`flex-1 grid ${getGridClasses()} gap-4 p-6 place-items-center transition-all duration-300`}>
         {videoStreams.map((stream, idx) => {
@@ -1335,7 +1335,7 @@ export default function Room() {
               )}
               {/* Display translated caption for remote stream */}
               {stream.translatedCaption && !stream.isLocal && (
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-red-700 bg-opacity-80 rounded-md text-center">
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-blue-700 bg-opacity-70 rounded-md text-center">
                       <p className="text-white text-sm">{stream.translatedCaption}</p>
                   </div>
               )}
@@ -1345,7 +1345,7 @@ export default function Room() {
       </div>
   
       {/* Bottom bar for controls */}
-      <div className="w-full bg-red-800 p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-red-700">
+      <div className="w-full bg-gray-800 p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-gray-700">
         {/* Language selection and set button */}
         <div className="flex flex-col md:flex-row items-center gap-4">
           <LanguageSelector
@@ -1356,19 +1356,19 @@ export default function Room() {
           />
           <button
             onClick={sendLanguagePreferences}
-            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-white font-medium"
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white font-medium"
           >
             Set Languages
           </button>
         </div>
-        {/* Audio/Video controls */}
+        {/* Audio/Video controls and Kick Button */}
         <div className="flex items-center gap-4">
-              <button 
+              <button
                 onClick={toggleAudio}
                 disabled={isRemoteRecording}
                 className={`p-3 rounded-full ${
-                  isRemoteRecording ? 'bg-red-700 opacity-50 cursor-not-allowed' :
-                  isLocalAudioEnabled ? 'bg-red-600' : 'bg-red-800'
+                  isRemoteRecording ? 'bg-gray-600 opacity-50 cursor-not-allowed' :
+                  isLocalAudioEnabled ? 'bg-blue-600' : 'bg-red-600'
                 }`}
                 title={
                   isRemoteRecording ? "Other person is recording" :
@@ -1379,32 +1379,32 @@ export default function Room() {
                   <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
                 </svg>
               </button>
-              <button 
+              <button
                 onClick={toggleVideo}
-                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-red-600' : 'bg-red-800'}`}
+                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
                 title={isLocalVideoEnabled ? "Turn off video" : "Turn on video"}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
                 </svg>
               </button>
+              {/* Kick Button (Visible to host when remote stream is present) */}
+              {userId === hostId && remoteStream && (
+                  <button
+                      onClick={() => handleKick(remotePeerId)}
+                      className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-white font-medium"
+                      title="Kick other participant"
+                  >
+                      Kick Participant
+                  </button>
+              )}
             </div>
-            {/* Kick Button (Visible to host when remote stream is present) */}
-            {userId === hostId && remoteStream && (
-                <button
-                    onClick={() => handleKick(remotePeerId)}
-                    className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-white font-medium"
-                    title="Kick other participant"
-                >
-                    Kick Participant
-                </button>
-            )}
-            {/* Exit Meeting Button */}
-            <button
+             {/* Exit Meeting Button */}
+             <button
                 onClick={handleExitMeeting}
                 className="bg-gray-500 hover:bg-gray-600 px-4 py-2 rounded-md text-white font-medium"
                 title="Leave the meeting"
-            >
+             >
                 Exit Meeting
             </button>
       </div>
