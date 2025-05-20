@@ -336,6 +336,22 @@ export default function Room() {
           }
         });
 
+     // Listen for user-disconnected
+     socketRef.current.on("user-disconnected", (disconnectedUserId) => {
+       console.log(`🔴 ${disconnectedUserId} disconnected`);
+       // Check if the disconnected user is the current remote peer
+       if (disconnectedUserId === remotePeerId) {
+         console.log('📺 Remote peer disconnected, clearing remote stream.');
+         setRemoteStream(null); // Clear the remote stream
+         setRemotePeerId(null); // Clear the remote peer ID
+         setPeerUsernames(prev => { // Remove the disconnected peer's username
+            const newState = { ...prev };
+            delete newState[disconnectedUserId];
+            return newState;
+         });
+       }
+     });
+
      // Cleanup other listeners when socket changes or component unmounts
      return () => {
         console.log('🔌 Cleaning up other socket event listeners...');
@@ -343,6 +359,7 @@ export default function Room() {
             socketRef.current.off("connect");
             socketRef.current.off("disconnect");
             socketRef.current.off("user-connected");
+            socketRef.current.off("user-disconnected");
         }
      };
   }, [socketRef.current, userId, roomId, username, localStreamRef]); // Dependencies for emissions and other listeners
