@@ -348,22 +348,8 @@ export default function Room() {
      socketRef.current.on("user-disconnected", (disconnectedUserId) => {
        console.log(`🔴 ${disconnectedUserId} disconnected`);
        console.log(`Current remotePeerId: ${remotePeerId}, Disconnected UserId: ${disconnectedUserId}`);
-       // Check if the disconnected user is the current remote peer
-       if (disconnectedUserId === remotePeerId) {
-         console.log('📺 Disconnected user matches remotePeerId. Clearing remote stream.');
-         // Stop remote stream tracks before clearing
-         if (remoteStream) {
-           console.log('Stopping remote stream tracks.');
-           remoteStream.getTracks().forEach(track => track.stop());
-         }
-         setRemoteStream(null); // Clear the remote stream
-         setRemotePeerId(null); // Clear the remote peer ID
-         setRemoteTranscript(''); // Clear remote transcript
-         // No need to clear remoteUserLanguages entirely, maybe reset to default or handle per peer ID if multi-user
-         // setRemoteUserLanguages([]);
-         console.log('✅ setRemoteStream(null) called, remotePeerId and transcript cleared.');
-       }
-        // Clean up the disconnected peer's username from the map regardless of whether they were the primary remote peer
+
+        // Clean up the disconnected peer's username from the map
         setPeerUsernames(prev => {
             const newState = { ...prev };
             delete newState[disconnectedUserId];
@@ -371,24 +357,46 @@ export default function Room() {
             return newState;
          });
 
-        // We are relying on PeerJS and the backend to manage connection state,
-        // manual closing/deletion here might interfere.
-        // If needed for specific cleanup, this part would require careful consideration
-        // if (peerRef.current && peerRef.current.connections[disconnectedUserId]) {
-        //     peerRef.current.connections[disconnectedUserId].forEach(conn => {
-        //         try {
-        //             conn.close();
-        //         } catch (e) {
-        //             console.error(`Error closing connection with ${disconnectedUserId}`, e);
-        //         }
-        //     });
-        //     // Manual deletion might be problematic with PeerJS internal state
-        //     // delete peerRef.current.connections[disconnectedUserId];
-        // }
+       // Check if the disconnected user was the primary remote peer and clear its specific states
+       if (disconnectedUserId === remotePeerId) {
+         console.log(`📺 Disconnected user ${disconnectedUserId} was the primary remote peer. Clearing primary remote states.`);
+         // Stop remote stream tracks before clearing
+         if (remoteStream) {
+           console.log('Stopping primary remote stream tracks.');
+           remoteStream.getTracks().forEach(track => track.stop());
+         }
+         setRemoteStream(null); // Clear the remote stream
+         setRemotePeerId(null); // Clear the remote peer ID
+         setRemoteTranscript(''); // Clear remote transcript
+         console.log('✅ Primary remote stream and info cleared.');
+       }
 
-       // The logic to revert to single view is handled by setting remoteStream(null).
-       // Checking remaining peers here is more relevant for a multi-user gallery view.
-       // For 1-to-1, clearing remoteStream is sufficient.
+       // After handling the specific disconnected user, check if any remote peers remain.
+       // We'll use a small delay to allow PeerJS internal state to update.
+       setTimeout(() => {
+           if (peerRef.current) {
+               const connectedPeers = Object.keys(peerRef.current.connections).filter(
+                   peerId => peerRef.current.connections[peerId] && peerRef.current.connections[peerId].length > 0
+               );
+
+               console.log(`Remaining connected peers after ${disconnectedUserId} left:`, connectedPeers);
+
+               // If no remote peers are left, explicitly clear all remote-related states
+               if (connectedPeers.length === 0) {
+                   console.log('👤 No more remote peers remaining. Resetting all remote-related UI states.');
+                   if (remoteStream) { // Stop tracks if there was a stream
+                        remoteStream.getTracks().forEach(track => track.stop());
+                   }
+                   setRemoteStream(null);
+                   setRemotePeerId(null);
+                   setRemoteTranscript('');
+                   setRemoteUserLanguages({}); // Reset remote user languages
+                   setReceivedAudios([]); // Clear received audios
+                    console.log('✅ All remote-related states cleared for single view.');
+               }
+           }
+       }, 100); // Small delay to check connections after PeerJS potential cleanup
+
      });
 
      // Cleanup other listeners when socket changes or component unmounts
