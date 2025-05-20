@@ -95,6 +95,7 @@ export default function Room() {
 
   const [peerUsernames, setPeerUsernames] = useState({});
   const [hostId, setHostId] = useState(null); // State to store the host's ID
+  const [hasRemoteUser, setHasRemoteUser] = useState(false); // Flag to track if there is a remote user
 
   useEffect(() => {
     console.log("🧠 RoomID:", roomId);
@@ -342,6 +343,7 @@ export default function Room() {
                    }
               }
           }
+          setHasRemoteUser(true); // Set flag when a user connects
         });
 
      // Listen for user-disconnected
@@ -371,8 +373,7 @@ export default function Room() {
          console.log('✅ Primary remote stream and info cleared.');
        }
 
-       // After handling the specific disconnected user, check if any remote peers remain.
-       // We'll use a small delay to allow PeerJS internal state to update.
+       // Check if any remote peers remain after a short delay
        setTimeout(() => {
            if (peerRef.current) {
                const connectedPeers = Object.keys(peerRef.current.connections).filter(
@@ -381,9 +382,9 @@ export default function Room() {
 
                console.log(`Remaining connected peers after ${disconnectedUserId} left:`, connectedPeers);
 
-               // If no remote peers are left, explicitly clear all remote-related states
+               // If no remote peers are left, explicitly clear all remote-related states and set hasRemoteUser to false
                if (connectedPeers.length === 0) {
-                   console.log('👤 No more remote peers remaining. Resetting all remote-related UI states.');
+                   console.log('👤 No more remote peers remaining. Resetting all remote-related UI states and setting hasRemoteUser to false.');
                    if (remoteStream) { // Stop tracks if there was a stream
                         remoteStream.getTracks().forEach(track => track.stop());
                    }
@@ -392,7 +393,12 @@ export default function Room() {
                    setRemoteTranscript('');
                    setRemoteUserLanguages({}); // Reset remote user languages
                    setReceivedAudios([]); // Clear received audios
-                    console.log('✅ All remote-related states cleared for single view.');
+                   setHasRemoteUser(false); // Set flag to false
+                    console.log('✅ All remote-related states cleared, hasRemoteUser is false.');
+               } else {
+                   // If there are still remote peers, ensure hasRemoteUser is true (important for multi-user)
+                   setHasRemoteUser(true);
+                   console.log('Still remote peers remaining, ensuring hasRemoteUser is true.');
                }
            }
        }, 100); // Small delay to check connections after PeerJS potential cleanup
@@ -1293,7 +1299,7 @@ export default function Room() {
       translatedCaption: null, // Local stream doesn't need remote translation captions
       userId: userId, // Add userId to stream data
     },
-    ...(remoteStream ? [{
+    ...(hasRemoteUser && remoteStream ? [{
       ref: remoteVideoRef,
       label: peerUsernames[remotePeerId] || 'Other Person',
       ready: connectionStatus === 'connected',
