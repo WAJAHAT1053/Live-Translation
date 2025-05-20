@@ -499,7 +499,7 @@ export default function Room() {
                          console.log(`New data connection opened with ${dataConn.peer} from user-connected. Sending username.`);
                           setTimeout(() => {
                                dataConn.send({ type: 'username', username });
-                          }, 10); // Reduced delay to 10ms
+                            }, 10); // Reduced delay to 10ms
                        });
                         dataConn.on('data', (data) => {
                            if (data.type === 'username' && data.username) {
@@ -1287,7 +1287,7 @@ export default function Room() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-white">
+    <div className="flex flex-col min-h-screen bg-red-900 text-white">
       {/* Main video grid */}
       <div className={`flex-1 grid ${getGridClasses()} gap-4 p-6 place-items-center transition-all duration-300`}>
         {videoStreams.map((stream, idx) => {
@@ -1324,7 +1324,7 @@ export default function Room() {
               )}
               {/* Display translated caption for remote stream */}
               {stream.translatedCaption && !stream.isLocal && (
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-green-700 bg-opacity-80 rounded-md text-center">
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-max max-w-[80%] px-4 py-2 bg-red-700 bg-opacity-80 rounded-md text-center">
                       <p className="text-white text-sm">{stream.translatedCaption}</p>
                   </div>
               )}
@@ -1334,7 +1334,7 @@ export default function Room() {
       </div>
   
       {/* Bottom bar for controls */}
-      <div className="w-full bg-gray-800 p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-gray-700">
+      <div className="w-full bg-red-800 p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-red-700">
         {/* Language selection and set button */}
         <div className="flex flex-col md:flex-row items-center gap-4">
           <LanguageSelector
@@ -1345,7 +1345,7 @@ export default function Room() {
           />
           <button
             onClick={sendLanguagePreferences}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white font-medium"
+            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-white font-medium"
           >
             Set Languages
           </button>
@@ -1356,8 +1356,8 @@ export default function Room() {
                 onClick={toggleAudio}
                 disabled={isRemoteRecording}
                 className={`p-3 rounded-full ${
-                  isRemoteRecording ? 'bg-gray-600 opacity-50 cursor-not-allowed' :
-                  isLocalAudioEnabled ? 'bg-blue-600' : 'bg-red-600'
+                  isRemoteRecording ? 'bg-red-700 opacity-50 cursor-not-allowed' :
+                  isLocalAudioEnabled ? 'bg-red-600' : 'bg-red-800'
                 }`}
                 title={
                   isRemoteRecording ? "Other person is recording" :
@@ -1370,7 +1370,7 @@ export default function Room() {
               </button>
               <button 
                 onClick={toggleVideo}
-                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
+                className={`p-3 rounded-full ${isLocalVideoEnabled ? 'bg-red-600' : 'bg-red-800'}`}
                 title={isLocalVideoEnabled ? "Turn off video" : "Turn on video"}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
