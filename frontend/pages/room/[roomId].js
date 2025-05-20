@@ -1381,13 +1381,16 @@ export default function Room() {
         setRemotePeerId(call.peer);
         setParticipantCount(2);
         
-        // Get username from call metadata
+        // Get username from call metadata with a slight delay
         if (call.metadata && call.metadata.username) {
           console.log('Received username from call metadata:', call.metadata.username);
-          setPeerUsernames(prev => ({
-            ...prev,
-            [call.peer]: call.metadata.username
-          }));
+          setTimeout(() => {
+            setPeerUsernames(prev => ({
+              ...prev,
+              [call.peer]: call.metadata.username
+            }));
+             console.log(`Updated peerUsernames with metadata for ${call.peer}: ${call.metadata.username}`);
+          }, 100); // Add a 100ms delay
         }
       });
     };
@@ -1397,10 +1400,14 @@ export default function Room() {
       conn.on('data', (data) => {
         if (data.type === 'username') {
           console.log('Received username from peer:', conn.peer, data.username);
-          setPeerUsernames(prev => ({
-            ...prev,
-            [conn.peer]: data.username
-          }));
+          // Update username with a slight delay
+          setTimeout(() => {
+            setPeerUsernames(prev => ({
+              ...prev,
+              [conn.peer]: data.username
+            }));
+             console.log(`Updated peerUsernames with data for ${conn.peer}: ${data.username}`);
+          }, 100); // Add a 100ms delay
         }
       });
     };
@@ -1410,12 +1417,31 @@ export default function Room() {
       try {
         // Make call with username in metadata
         const call = peerRef.current.call(userId, localStreamRef.current, { metadata: { username } });
-        call.on('stream', (remoteStream) => {
-          console.log('Received remote stream from outgoing call:', userId);
-          setRemoteStream(remoteStream);
-          setRemotePeerId(userId);
-          setParticipantCount(2);
-        });
+        if (call) {
+           call.on('stream', (remoteStream) => {
+            console.log('Received remote stream from outgoing call:', userId);
+            setRemoteStream(remoteStream);
+            setRemotePeerId(userId);
+            setParticipantCount(2);
+            
+            // No need to get username from metadata here, it will be received via data channel
+          });
+           call.on('open', () => {
+             console.log(`Outgoing call to ${userId} opened. Attempting to send username via data channel.`);
+             // Ensure data connection is open and send username with a delay
+             const dataConn = peerRef.current.connections[userId]?.find(conn => conn.type === 'data' && conn.open);
+             if (dataConn) {
+                setTimeout(() => {
+                  dataConn.send({ type: 'username', username });
+                   console.log(`Sent username ${username} via data channel to ${userId} after call open.`);
+                }, 100); // Add a 100ms delay
+             } else {
+                console.warn(`⚠️ Data channel not open for ${userId} after call open. Will rely on direct connection handling.`);
+             }
+           });
+        } else {
+             console.warn(`⚠️ Failed to create call object for ${userId}.`);
+        }
       } catch (error) {
         console.error('Error making call:', error);
       }
@@ -1425,10 +1451,32 @@ export default function Room() {
     peerRef.current.on('connection', handleConnection);
     socketRef.current.on('user-joined', handleUserJoined);
 
+    // Also handle username updates from direct data connections not tied to a call
+    if (peerRef.current) {
+        peerRef.current.on('connection', (conn) => {
+            conn.on('data', (data) => {
+                if (data.type === 'username') {
+                    console.log('Received username via direct data connection:', conn.peer, data.username);
+                    setTimeout(() => {
+                        setPeerUsernames(prev => ({
+                            ...prev,
+                            [conn.peer]: data.username
+                        }));
+                        console.log(`Updated peerUsernames via direct data connection for ${conn.peer}: ${data.username}`);
+                    }, 100); // Add a 100ms delay
+                }
+            });
+        });
+    }
+
     return () => {
       peerRef.current.off('call', handleCall);
       peerRef.current.off('connection', handleConnection);
       socketRef.current.off('user-joined', handleUserJoined);
+       // Clean up direct connection listener if added
+       if (peerRef.current) {
+           peerRef.current.off('connection', handleConnection); // Note: This might remove the previous listener too, consider a separate handler for direct connections
+       }
     };
   }, [peerRef.current, localStreamRef.current, socketRef.current, username]); // Added username to dependencies
 
