@@ -115,22 +115,11 @@ export default function setupPeer(
   peer.on("call", (call) => {
     console.log("📞 Incoming call from", call.peer);
     if (localStreamRef.current) {
-      console.log(" answering call and sending local stream.");
       call.answer(localStreamRef.current);
       call.on("stream", (remoteStream) => {
-        console.log("📺 Got remote stream from:", call.peer, ":", remoteStream);
+        console.log("📺 Got remote stream from:", call.peer);
         setRemoteStream(remoteStream);
       });
-      call.on('close', () => {
-           console.log('📞 Call with ', call.peer, ' closed.');
-           // You might want to clean up UI elements related to this peer here
-       });
-       call.on('error', (err) => {
-           console.error('❌ Call error with ', call.peer, ': ', err);
-       });
-    } else {
-        console.warn("⚠️ Cannot answer call: Local stream not available.");
-         // Potentially send an error back or just ignore
     }
   });
 

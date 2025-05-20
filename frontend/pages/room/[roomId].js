@@ -231,7 +231,7 @@ export default function Room() {
       }
     });
 
-    // Listen for user-disconnected event (Simplified)
+    // Listen for user-disconnected event
     socketRef.current.on('user-disconnected', (disconnectedUserId) => {
         console.log(`Socket user-disconnected: ${disconnectedUserId}`);
         // If the disconnected user is our current remote peer, clear their stream and info
@@ -1246,11 +1246,10 @@ export default function Room() {
       translatedCaption: null, // Local stream doesn't need remote translation captions
       userId: userId, // Add userId to stream data
     },
-    // Include remote stream if remotePeerId and remoteStream are set
-    ...(remotePeerId && remoteStream ? [{
+    ...(remoteStream ? [{
       ref: remoteVideoRef,
       label: peerUsernames[remotePeerId] || 'Other Person',
-      ready: connectionStatus === 'connected', // May need more granular check for multi-user
+      ready: connectionStatus === 'connected',
       isLocal: false,
       isRecording: isRemoteRecording,
       transcript: remoteTranscript,
