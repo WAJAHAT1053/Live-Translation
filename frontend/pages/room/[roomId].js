@@ -233,15 +233,18 @@ export default function Room() {
 
     // Listen for user-disconnected event
     socketRef.current.on('user-disconnected', (disconnectedUserId) => {
-        console.log(`Socket user-disconnected: ${disconnectedUserId}`);
+        console.log(`Socket user-disconnected event received for user: ${disconnectedUserId}`);
+        console.log(`Current remotePeerId state: ${remotePeerId}`);
         // If the disconnected user is our current remote peer, clear their stream and info
         if (disconnectedUserId === remotePeerId) {
-            console.log(`Remote peer ${disconnectedUserId} disconnected. Clearing stream and info.`);
+            console.log(`Match found: Remote peer ${disconnectedUserId} disconnected. Clearing stream and info.`);
             setRemoteStream(null);
             setRemotePeerId(null);
             setPeerUsernames(prev => { delete prev[disconnectedUserId]; return { ...prev }; });
             // Optionally, clear remote transcript and caption here if desired
             setRemoteTranscript('');
+        } else {
+            console.log(`Disconnected user ID ${disconnectedUserId} does not match current remotePeerId ${remotePeerId}.`);
         }
          // Handle case for multiple remote users if expanded later
          // For now, assuming max 2 people.
