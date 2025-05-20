@@ -1373,12 +1373,22 @@ export default function Room() {
 
     const handleCall = (call) => {
       console.log('Received call from:', call.peer);
-      call.answer(localStreamRef.current);
+      // Answer the call with our local stream and username
+      call.answer(localStreamRef.current, { metadata: { username } });
       call.on('stream', (remoteStream) => {
         console.log('Received remote stream from call:', call.peer);
         setRemoteStream(remoteStream);
         setRemotePeerId(call.peer);
         setParticipantCount(2);
+        
+        // Get username from call metadata
+        if (call.metadata && call.metadata.username) {
+          console.log('Received username from call metadata:', call.metadata.username);
+          setPeerUsernames(prev => ({
+            ...prev,
+            [call.peer]: call.metadata.username
+          }));
+        }
       });
     };
 
@@ -1398,7 +1408,8 @@ export default function Room() {
     const handleUserJoined = async (userId) => {
       console.log('User joined, making call to:', userId);
       try {
-        const call = peerRef.current.call(userId, localStreamRef.current);
+        // Make call with username in metadata
+        const call = peerRef.current.call(userId, localStreamRef.current, { metadata: { username } });
         call.on('stream', (remoteStream) => {
           console.log('Received remote stream from outgoing call:', userId);
           setRemoteStream(remoteStream);
@@ -1419,7 +1430,7 @@ export default function Room() {
       peerRef.current.off('connection', handleConnection);
       socketRef.current.off('user-joined', handleUserJoined);
     };
-  }, [peerRef.current, localStreamRef.current, socketRef.current]);
+  }, [peerRef.current, localStreamRef.current, socketRef.current, username]); // Added username to dependencies
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
