@@ -231,12 +231,29 @@ export default function Room() {
       }
     });
 
+    // Listen for user-disconnected event
+    socketRef.current.on('user-disconnected', (disconnectedUserId) => {
+        console.log(`Socket user-disconnected: ${disconnectedUserId}`);
+        // If the disconnected user is our current remote peer, clear their stream and info
+        if (disconnectedUserId === remotePeerId) {
+            console.log(`Remote peer ${disconnectedUserId} disconnected. Clearing stream and info.`);
+            setRemoteStream(null);
+            setRemotePeerId(null);
+            setPeerUsernames(prev => { delete prev[disconnectedUserId]; return { ...prev }; });
+            // Optionally, clear remote transcript and caption here if desired
+            setRemoteTranscript('');
+        }
+         // Handle case for multiple remote users if expanded later
+         // For now, assuming max 2 people.
+    });
+
     // Cleanup listeners when socket changes or component unmounts
     return () => {
       console.log('🔌 Cleaning up critical socket event listeners...');
       if (socketRef.current) {
         socketRef.current.off('set-host');
         socketRef.current.off('user-kicked');
+        socketRef.current.off('user-disconnected');
       }
     };
   }, [socketRef.current, userId, router, peerRef]); // Added dependencies for cleanup and logic inside listeners
