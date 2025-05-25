@@ -1273,12 +1273,12 @@ export default function Room() {
                 console.log(`✅ Sent chunk ${index + 1}/${totalChunks}`);
                 successfulChunks++;
                 
-                // Schedule next chunk with longer delay (200ms)
-                setTimeout(() => sendChunk(index + 1), 200);
+                // Schedule next chunk with minimal delay (50ms)
+                setTimeout(() => sendChunk(index + 1), 50);
               } catch (error) {
                 console.error(`❌ Error sending chunk ${index + 1}:`, error);
-                // Retry this chunk after a longer delay (500ms)
-                setTimeout(() => sendChunk(index), 500);
+                // Retry this chunk after a shorter delay (100ms)
+                setTimeout(() => sendChunk(index), 100);
               }
             };
 

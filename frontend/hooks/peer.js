@@ -181,7 +181,7 @@ export default function setupPeer(
             totalChunks: chunks.length,
             data: chunks[idx],
           });
-          await new Promise((res) => setTimeout(res, 100)); // Throttle sending
+          await new Promise((res) => setTimeout(res, 20)); // Minimal throttle
         }
       };
 
