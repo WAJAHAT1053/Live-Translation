@@ -1178,7 +1178,113 @@ export default function Room() {
         testAudio.onloadedmetadata = async () => {
           try {
             URL.revokeObjectURL(testUrl);
-            // ... rest of the existing sendTranslatedAudio code ...
+            const buffer = await translationDataToUse.audioBlob.arrayBuffer();
+            console.log('[SEND] 🔄 Converting to ArrayBuffer:', {
+              originalSize: translationDataToUse.audioBlob.size,
+              bufferSize: buffer.byteLength
+            });
+            const uint8Array = new Uint8Array(buffer);
+            const regularArray = Array.from(uint8Array);
+            const CHUNK_SIZE = 1024;
+            const chunks = chunkArray(regularArray, CHUNK_SIZE);
+            const totalChunks = chunks.length;
+            console.log('[SEND] 🔄 Splitting audio into chunks:', {
+              totalChunks,
+              chunkSize: CHUNK_SIZE,
+              totalSize: regularArray.length
+            });
+
+            // Ensure data connection is established
+            const ensureDataConnection = () => {
+              return new Promise((resolve, reject) => {
+                // Check if connection already exists
+                if (peerRef.current.connections[remotePeerId]?.open) {
+                  resolve(peerRef.current.connections[remotePeerId]);
+                  return;
+                }
+
+                // Try to establish new connection
+                const conn = peerRef.current.connect(remotePeerId, {
+                  reliable: true,
+                  serialization: 'json'
+                });
+
+                conn.on('open', () => {
+                  console.log('✅ Data connection established');
+                  resolve(conn);
+                });
+
+                conn.on('error', (error) => {
+                  console.error('❌ Data connection error:', error);
+                  reject(error);
+                });
+
+                // Set timeout for connection
+                setTimeout(() => {
+                  if (!conn.open) {
+                    reject(new Error('Data connection timeout'));
+                  }
+                }, 5000);
+              });
+            };
+
+            // Get or establish data connection
+            const conn = await ensureDataConnection();
+            if (!conn) {
+              throw new Error('Failed to establish data connection');
+            }
+
+            // Send audio info first
+            const audioInfo = {
+              type: 'audio-info',
+              messageId: Date.now().toString(),
+              totalChunks,
+              fromLanguage: translationDataToUse.fromLanguage,
+              toLanguage: translationDataToUse.toLanguage,
+              sourceText: translationDataToUse.sourceText,
+              translatedText: translationDataToUse.translatedText,
+              totalSize: regularArray.length,
+              chunkSize: CHUNK_SIZE
+            };
+
+            conn.send(audioInfo);
+            console.log('✅ Sent audio info');
+
+            // Send chunks with longer delay to prevent overwhelming the connection
+            let successfulChunks = 0;
+            
+            const sendChunk = (index) => {
+              if (index >= totalChunks) {
+                console.log(`✅ All chunks sent successfully (${successfulChunks}/${totalChunks})`);
+                resolve();
+                return;
+              }
+
+              const chunkData = {
+                type: 'audio-chunk',
+                messageId: audioInfo.messageId,
+                chunkIndex: index,
+                totalChunks,
+                data: chunks[index]
+              };
+
+              try {
+                conn.send(chunkData);
+                console.log(`✅ Sent chunk ${index + 1}/${totalChunks}`);
+                successfulChunks++;
+                
+                // Schedule next chunk with longer delay (200ms)
+                setTimeout(() => sendChunk(index + 1), 200);
+              } catch (error) {
+                console.error(`❌ Error sending chunk ${index + 1}:`, error);
+                // Retry this chunk after a longer delay (500ms)
+                setTimeout(() => sendChunk(index), 500);
+              }
+            };
+
+            // Start sending chunks
+            sendChunk(0);
+
           } catch (error) {
             console.error('[SEND] ❌ Error processing audio for sending:', error);
             reject(error);
