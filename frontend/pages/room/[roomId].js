@@ -381,6 +381,16 @@ export default function Room() {
          if (remoteVideoRef.current) {
            remoteVideoRef.current.srcObject = null;
          }
+
+         // Clean up peer connection
+         if (peerRef.current && peerRef.current.connections[disconnectedUserId]) {
+           console.log('Cleaning up peer connection for disconnected user');
+           peerRef.current.connections[disconnectedUserId].forEach(conn => {
+             if (conn.type === 'data') {
+               conn.close();
+             }
+           });
+         }
          
          console.log('✅ All remote-related states cleared, UI should show single view.');
        }
