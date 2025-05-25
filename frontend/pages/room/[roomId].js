@@ -165,7 +165,7 @@ export default function Room() {
     if (remotePeerId && peerRef.current) {
       const preferences = {
         speaks: sourceLanguage,
-        wantsToHear: targetLanguage
+        wantsToHear: targetLanguage // This is what language the local user wants to hear remote user's speech in
       };
       peerRef.current.sendLanguagePreferences(remotePeerId, preferences);
       console.log('📢 Sent language preferences:', preferences);
@@ -850,16 +850,20 @@ export default function Room() {
   useEffect(() => {
     if (transcript && remotePeerId && peerRef.current) {
       peerRef.current.sendTranscript(remotePeerId, transcript);
-      translateAndPlay(transcript);
+      // Only translate if remote user has specified a target language
+      if (remoteUserLanguages.wantsToHear) {
+        translateAndPlay(transcript, sourceLanguage, remoteUserLanguages.wantsToHear);
+      }
     }
-  }, [transcript, remotePeerId, translateAndPlay]);
+  }, [transcript, remotePeerId, translateAndPlay, remoteUserLanguages.wantsToHear]);
 
   // Handle remote transcript with audio translation
   useEffect(() => {
     if (remoteTranscript) {
-      translateAndPlay(remoteTranscript);
+      // Translate remote transcript to local user's target language
+      translateAndPlay(remoteTranscript, remoteUserLanguages.speaks || 'en', targetLanguage);
     }
-  }, [remoteTranscript, translateAndPlay]);
+  }, [remoteTranscript, translateAndPlay, remoteUserLanguages.speaks, targetLanguage]);
 
   // Toggle speech recognition
   const toggleSpeechRecognition = () => {
@@ -1037,11 +1041,11 @@ export default function Room() {
       const formData = new FormData();
       formData.append('audio', audioBlob);
       formData.append('source_language', sourceLanguage);
-      formData.append('target_language', targetLanguage);
+      formData.append('target_language', remoteUserLanguages.wantsToHear || targetLanguage);
 
       console.log('[TRANSLATE] Sending request with:', {
         sourceLanguage,
-        targetLanguage,
+        targetLanguage: remoteUserLanguages.wantsToHear || targetLanguage,
         audioSize: audioBlob.size,
         audioType: audioBlob.type
       });
@@ -1089,14 +1093,14 @@ export default function Room() {
         translatedText,
         audioBlobSize: translatedAudioBlob.size,
         sourceLanguage,
-        targetLanguage
+        targetLanguage: remoteUserLanguages.wantsToHear || targetLanguage
       });
 
       // Create translation data
       const newTranslationData = {
         audioBlob: translatedAudioBlob,
         fromLanguage: sourceLanguage,
-        toLanguage: targetLanguage,
+        toLanguage: remoteUserLanguages.wantsToHear || targetLanguage,
         sourceText,
         translatedText
       };
