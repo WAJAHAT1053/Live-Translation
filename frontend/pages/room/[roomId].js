@@ -165,14 +165,49 @@ export default function Room() {
     if (remotePeerId && peerRef.current) {
       const preferences = {
         speaks: sourceLanguage,
-        wantsToHear: targetLanguage // This is what language the local user wants to hear remote user's speech in
+        wantsToHear: targetLanguage
       };
-      peerRef.current.sendLanguagePreferences(remotePeerId, preferences);
-      console.log('📢 Sent language preferences:', preferences);
+      console.log('📢 Attempting to send language preferences:', preferences);
+      
+      // Try to send through existing data connection
+      const existingConnections = peerRef.current.connections[remotePeerId];
+      if (existingConnections && existingConnections.length > 0) {
+        const dataConn = existingConnections.find(conn => conn.type === 'data');
+        if (dataConn && dataConn.open) {
+          console.log('📢 Sending preferences through existing data connection');
+          dataConn.send({ type: 'language-preferences', preferences });
+          return;
+        }
+      }
+
+      // If no existing data connection, create a new one
+      console.log('📢 Creating new data connection for preferences');
+      const dataConn = peerRef.current.connect(remotePeerId, { reliable: true });
+      dataConn.on('open', () => {
+        console.log('📢 New data connection opened, sending preferences');
+        dataConn.send({ type: 'language-preferences', preferences });
+      });
+      dataConn.on('error', (err) => {
+        console.error('📢 Error sending preferences:', err);
+      });
     } else {
-      console.warn('⚠️ Cannot send preferences - no peer connection');
+      console.warn('⚠️ Cannot send preferences - no peer connection or remote peer ID');
     }
   };
+
+  // Handle receiving language preferences with persistence
+  useEffect(() => {
+    if (peerRef.current) {
+      peerRef.current.on('language-preferences', (data) => {
+        if (data.type === 'language-preferences' && data.preferences) {
+          console.log('📢 Received language preferences:', data.preferences);
+          setRemoteUserLanguages(data.preferences);
+          // Store remote preferences in localStorage
+          localStorage.setItem('remoteUserLanguages', JSON.stringify(data.preferences));
+        }
+      });
+    }
+  }, [peerRef.current]);
 
   // Periodically resend language preferences to ensure they're not lost
   useEffect(() => {
@@ -180,28 +215,17 @@ export default function Room() {
       // Send immediately
       sendLanguagePreferences();
 
-      // Set up periodic resend every 30 seconds
+      // Set up periodic resend every 5 seconds (reduced from 30)
       const intervalId = setInterval(() => {
         if (remotePeerId && peerRef.current) {
+          console.log('📢 Resending language preferences...');
           sendLanguagePreferences();
         }
-      }, 30000);
+      }, 5000);
 
       return () => clearInterval(intervalId);
     }
   }, [remotePeerId, sourceLanguage, targetLanguage]);
-
-  // Handle receiving language preferences with persistence
-  useEffect(() => {
-    if (peerRef.current) {
-      peerRef.current.on('language-preferences', (preferences) => {
-        console.log('📢 Received language preferences:', preferences);
-        setRemoteUserLanguages(preferences);
-        // Store remote preferences in localStorage
-        localStorage.setItem('remoteUserLanguages', JSON.stringify(preferences));
-      });
-    }
-  }, [peerRef.current]);
 
   // Load stored remote preferences on component mount
   useEffect(() => {
@@ -209,12 +233,27 @@ export default function Room() {
     if (storedPreferences) {
       try {
         const preferences = JSON.parse(storedPreferences);
+        console.log('📢 Loaded stored remote preferences:', preferences);
         setRemoteUserLanguages(preferences);
       } catch (error) {
         console.error('Error parsing stored preferences:', error);
       }
     }
   }, []);
+
+  // Log when remote user languages change
+  useEffect(() => {
+    console.log('📢 Remote user languages updated:', remoteUserLanguages);
+  }, [remoteUserLanguages]);
+
+  // Log when remote peer ID changes
+  useEffect(() => {
+    console.log('📢 Remote peer ID updated:', remotePeerId);
+    if (remotePeerId) {
+      // Send preferences when we get a new remote peer
+      sendLanguagePreferences();
+    }
+  }, [remotePeerId]);
 
   // Setup socket event listeners (isolated for critical room events)
   useEffect(() => {
