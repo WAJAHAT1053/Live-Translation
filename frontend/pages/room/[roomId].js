@@ -1357,7 +1357,7 @@ export default function Room() {
                   autoPlay
                   playsInline
                 muted={stream.isLocal} // Mute local audio to prevent echo
-                style={{ transform: stream.isLocal ? 'scaleX(-1)' : 'none' }} // Only flip local video
+                style={{ transform: 'scaleX(-1)' }} // Flip all videos
                 className="w-full h-full object-cover"
                 />
               {/* Name Label with Host Indicator */}
