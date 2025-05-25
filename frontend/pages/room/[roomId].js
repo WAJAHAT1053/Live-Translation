@@ -366,7 +366,10 @@ export default function Room() {
          // Stop and cleanup remote stream
          if (remoteStream) {
            console.log('Stopping remote stream tracks.');
-           remoteStream.getTracks().forEach(track => track.stop());
+           remoteStream.getTracks().forEach(track => {
+             track.stop();
+             track.enabled = false;
+           });
          }
          
          // Reset all remote-related states
@@ -380,6 +383,17 @@ export default function Room() {
          // Clear the remote video element
          if (remoteVideoRef.current) {
            remoteVideoRef.current.srcObject = null;
+           remoteVideoRef.current.load(); // Force video element to reset
+         }
+
+         // Close any existing peer connections
+         if (peerRef.current) {
+           const connections = peerRef.current.connections[disconnectedUserId];
+           if (connections) {
+             connections.forEach(conn => {
+               if (conn.close) conn.close();
+             });
+           }
          }
          
          console.log('✅ All remote-related states cleared, UI should show single view.');
