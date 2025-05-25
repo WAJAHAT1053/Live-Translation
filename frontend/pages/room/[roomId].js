@@ -359,50 +359,46 @@ export default function Room() {
             return newState;
          });
 
-       // Check if the disconnected user was the primary remote peer and clear its specific states
+       // If the disconnected user was our remote peer, clean up their stream and states
        if (disconnectedUserId === remotePeerId) {
-         console.log(`📺 Disconnected user ${disconnectedUserId} was the primary remote peer. Clearing primary remote states.`);
-         // Stop remote stream tracks before clearing
+         console.log(`📺 Disconnected user ${disconnectedUserId} was the primary remote peer. Cleaning up...`);
+         
+         // Stop and cleanup remote stream
          if (remoteStream) {
-           console.log('Stopping primary remote stream tracks.');
+           console.log('Stopping remote stream tracks.');
            remoteStream.getTracks().forEach(track => track.stop());
          }
-         setRemoteStream(null); // Clear the remote stream
-         setRemotePeerId(null); // Clear the remote peer ID
-         setRemoteTranscript(''); // Clear remote transcript
-         console.log('✅ Primary remote stream and info cleared.');
+         
+         // Reset all remote-related states
+         setRemoteStream(null);
+         setRemotePeerId(null);
+         setRemoteTranscript('');
+         setRemoteUserLanguages({});
+         setReceivedAudios([]);
+         setParticipantCount(1);
+         
+         // Clear the remote video element
+         if (remoteVideoRef.current) {
+           remoteVideoRef.current.srcObject = null;
+         }
+         
+         console.log('✅ All remote-related states cleared, UI should show single view.');
        }
 
-       // Check if any remote peers remain after a short delay
-       setTimeout(() => {
-           if (peerRef.current) {
-               const connectedPeers = Object.keys(peerRef.current.connections).filter(
-                   peerId => peerRef.current.connections[peerId] && peerRef.current.connections[peerId].length > 0
-               );
+       // Check if any remote peers remain
+       if (peerRef.current) {
+         const connectedPeers = Object.keys(peerRef.current.connections).filter(
+           peerId => peerRef.current.connections[peerId] && peerRef.current.connections[peerId].length > 0
+         );
 
-               console.log(`Remaining connected peers after ${disconnectedUserId} left:`, connectedPeers);
+         console.log(`Remaining connected peers after ${disconnectedUserId} left:`, connectedPeers);
 
-               // If no remote peers are left, explicitly clear all remote-related states and set participantCount to 1
-               if (connectedPeers.length === 0) {
-                   console.log('👤 No more remote peers remaining. Resetting all remote-related UI states and setting participantCount to 1.');
-                   if (remoteStream) { // Stop tracks if there was a stream
-                        remoteStream.getTracks().forEach(track => track.stop());
-                   }
-                   setRemoteStream(null);
-                   setRemotePeerId(null);
-                   setRemoteTranscript('');
-                   setRemoteUserLanguages({}); // Reset remote user languages
-                   setReceivedAudios([]); // Clear received audios
-                   setParticipantCount(1); // Set count to 1
-                    console.log('✅ All remote-related states cleared, participantCount is 1.');
-               } else {
-                   // If there are still remote peers, ensure participantCount is 2 (for 1-to-many in future)
-                   if (participantCount === 1) setParticipantCount(2); // Only increment if currently 1
-                    console.log('Still remote peers remaining, ensuring participantCount reflects this.');
-               }
-           }
-       }, 100); // Small delay to check connections after PeerJS potential cleanup
-
+         // If no remote peers are left, ensure we're in single-user mode
+         if (connectedPeers.length === 0) {
+           console.log('👤 No more remote peers remaining. Ensuring single-user mode.');
+           setParticipantCount(1);
+         }
+       }
      });
 
      // Cleanup other listeners when socket changes or component unmounts
