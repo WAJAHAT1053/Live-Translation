@@ -497,21 +497,38 @@ export default function Room() {
             }, 10);
           });
         });
-      }
 
-      // When receiving a call, answer with local stream
-      peer.on('call', (call) => {
-        console.log(`Received call from ${call.peer}.`);
-        if (localStreamRef.current) {
-          call.answer(localStreamRef.current);
-          call.on('stream', (remoteStream) => {
-            console.log(`Received remote stream from incoming call with ${call.peer}.`);
-            setRemoteStream(remoteStream);
-            setRemotePeerId(call.peer);
-            setParticipantCount(2);
-          });
-        }
-      });
+        // When receiving a call, answer with local stream
+        peer.on('call', (call) => {
+          console.log(`Received call from ${call.peer}.`);
+          if (localStreamRef.current) {
+            call.answer(localStreamRef.current);
+            call.on('stream', (remoteStream) => {
+              console.log(`Received remote stream from incoming call with ${call.peer}.`);
+              setRemoteStream(remoteStream);
+              setRemotePeerId(call.peer);
+              setParticipantCount(2);
+            });
+          }
+        });
+
+        // Make call to existing peer
+        socketRef.current.on("user-connected", (remoteUserId) => {
+          console.log(`Socket user-connected: ${remoteUserId}. My user ID: ${userId}`);
+          if (remoteUserId !== userId && !peer.connections[remoteUserId]) {
+            console.log(`Initiating call to ${remoteUserId}`);
+            const call = peer.call(remoteUserId, localStreamRef.current, { metadata: { username } });
+            if (call) {
+              call.on("stream", (remoteStream) => {
+                console.log(`Received remote stream from call with ${call.peer}.`);
+                setRemoteStream(remoteStream);
+                setRemotePeerId(call.peer);
+                setParticipantCount(2);
+              });
+            }
+          }
+        });
+      }
 
       // Cleanup function
       return () => {
