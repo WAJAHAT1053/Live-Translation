@@ -366,10 +366,7 @@ export default function Room() {
          // Stop and cleanup remote stream
          if (remoteStream) {
            console.log('Stopping remote stream tracks.');
-           remoteStream.getTracks().forEach(track => {
-             track.stop();
-             track.enabled = false;
-           });
+           remoteStream.getTracks().forEach(track => track.stop());
          }
          
          // Reset all remote-related states
@@ -383,17 +380,6 @@ export default function Room() {
          // Clear the remote video element
          if (remoteVideoRef.current) {
            remoteVideoRef.current.srcObject = null;
-           remoteVideoRef.current.load(); // Force video element to reset
-         }
-
-         // Close any existing peer connections
-         if (peerRef.current) {
-           const connections = peerRef.current.connections[disconnectedUserId];
-           if (connections) {
-             connections.forEach(conn => {
-               if (conn.close) conn.close();
-             });
-           }
          }
          
          console.log('✅ All remote-related states cleared, UI should show single view.');
@@ -448,8 +434,6 @@ export default function Room() {
             setPeerUsernames(prev => ({ ...prev, [callObj.peer]: callObj.metadata.username || 'Unknown' }));
           }
           setRemoteStream(stream);
-          setRemotePeerId(callObj.peer);
-          setParticipantCount(2);
         },
         (text) => {
           console.log('Received transcript:', text);
@@ -498,63 +482,200 @@ export default function Room() {
         // Handle peer connection
         peer.on("connection", (conn) => {
           console.log("New peer connection:", conn.peer);
-          setRemotePeerId(conn.peer);
+          // Do not set remotePeerId here directly, let the call handle it or find from connections map
+          // setRemotePeerId(conn.peer);
 
           // Send our preferences when we get a new connection
-          setTimeout(sendLanguagePreferences, 10);
+          setTimeout(sendLanguagePreferences, 10); // Reduced delay to 10ms
 
           // Send our username to the remote peer when connection is established
           conn.on("open", () => {
             console.log(`Data connection opened with ${conn.peer}. Sending username.`);
+            // Add a small delay before sending username
             setTimeout(() => {
                 conn.send({ type: "username", username });
-            }, 10);
+            }, 10); // Reduced delay to 10ms
+          });
+          conn.on("data", (data) => {
+            if (data.type === "username" && data.username) {
+              if (data.username !== username) {
+                console.log(`Received username data from ${conn.peer}: ${data.username}`);
+                setPeerUsernames(prev => ({ ...prev, [conn.peer]: data.username })); // Update peerUsernames map
+              }
+            }
+          });
+           conn.on('close', () => {
+            console.log(`Data connection closed with ${conn.peer}.`);
+            // Optional: remove peer from peerUsernames on close
+            // setPeerUsernames(prev => { delete prev[conn.peer]; return { ...prev }; });
+          });
+          conn.on('error', (err) => {
+            console.error(`Data connection error with ${conn.peer}:`, err);
           });
         });
+      }
 
-        // When receiving a call, answer with local stream
-        peer.on('call', (call) => {
-          console.log(`Received call from ${call.peer}.`);
-          if (localStreamRef.current) {
-            console.log('Answering call with local stream');
-            call.answer(localStreamRef.current);
-            call.on('stream', (remoteStream) => {
-              console.log(`Received remote stream from incoming call with ${call.peer}.`);
-              setRemoteStream(remoteStream);
-              setRemotePeerId(call.peer);
-              setParticipantCount(2);
-            });
-          } else {
-            console.error('Cannot answer call: local stream not ready');
-          }
-        });
-
-        // Make call to existing peer
-        socketRef.current.on("user-connected", (remoteUserId) => {
-          console.log(`Socket user-connected: ${remoteUserId}. My user ID: ${userId}`);
-          if (remoteUserId !== userId) {
-            // Check if a connection already exists
+      // Patch outgoing call to send username as metadata
+      socketRef.current.on("user-connected", (remoteUserId) => {
+        console.log(`Socket user-connected: ${remoteUserId}. My user ID: ${userId}`);
+        if (remoteUserId !== userId) {
+            // Check if a connection already exists to avoid duplicate connections
             if (!peer.connections[remoteUserId] || peer.connections[remoteUserId].length === 0) {
-              console.log(`Initiating call to ${remoteUserId}`);
-              if (localStreamRef.current) {
+                console.log(`Initiating call to ${remoteUserId}`);
                 const call = peer.call(remoteUserId, localStreamRef.current, { metadata: { username } });
                 if (call) {
-                  call.on("stream", (remoteStream) => {
-                    console.log(`Received remote stream from call with ${call.peer}.`);
-                    setRemoteStream(remoteStream);
-                    setRemotePeerId(call.peer);
-                    setParticipantCount(2);
-                  });
+                    call.on("stream", (remoteStream) => {
+                        console.log(`Received remote stream from call with ${call.peer}.`);
+                        setRemoteStream(remoteStream);
+                        // Also try to establish a data connection if not already present and send username
+                        if (!peer.connections[call.peer] || peer.connections[call.peer].length === 0) {
+                             console.log(`Call stream received, initiating data connection with ${call.peer} to send username.`);
+                             const dataConn = peer.connect(call.peer, { reliable: true });
+                             dataConn.on('open', () => {
+                                console.log(`Data connection opened after call stream with ${dataConn.peer}. Sending username.`);
+                                setTimeout(() => {
+                                     dataConn.send({ type: 'username', username });
+                                }, 10); // Reduced delay to 10ms
+                             });
+                             dataConn.on('data', (data) => {
+                                if (data.type === 'username' && data.username) {
+                                    if (data.username !== username) {
+                                         console.log(`Received username data via dataConn from ${dataConn.peer}: ${data.username}`);
+                                         setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
+                                     }
+                                }
+                             });
+                             dataConn.on('close', () => console.log(`Data connection closed after call stream with ${dataConn.peer}.`));
+                             dataConn.on('error', (err) => console.error(`Data connection error after call stream with ${dataConn.peer}:`, err));
+                        }
+                    });
+                     call.on('close', () => console.log(`Call closed with ${call.peer}.`));
+                     call.on('error', (err) => console.error(`Call error with ${call.peer}:`, err));
                 }
-              } else {
-                console.error('Cannot initiate call: local stream not ready');
-              }
             } else {
-              console.log(`Connection to ${remoteUserId} already exists`);
+                 console.log(`Existing connection to ${remoteUserId} found, not initiating new call.`);
+                 // If connection exists but no data channel yet, try establishing one and sending username
+                 const existingConnections = peer.connections[remoteUserId];
+                 const dataConnExists = existingConnections.some(conn => conn.type === 'data');
+
+                 if (!dataConnExists) {
+                      console.log(`No data channel found for ${remoteUserId}. Initiating data connection to send username.`);
+                      const dataConn = peer.connect(remoteUserId, { reliable: true });
+                       dataConn.on('open', () => {
+                         console.log(`New data connection opened with ${dataConn.peer} from user-connected. Sending username.`);
+                          setTimeout(() => {
+                               dataConn.send({ type: 'username', username });
+                            }, 10); // Reduced delay to 10ms
+                       });
+                        dataConn.on('data', (data) => {
+                           if (data.type === 'username' && data.username) {
+                               if (data.username !== username) {
+                                    console.log(`Received username data via new dataConn from ${dataConn.peer}: ${data.username}`);
+                                    setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
+                                }
+                           }
+                        });
+                        dataConn.on('close', () => console.log(`New data connection closed with ${dataConn.peer}.`));
+                        dataConn.on('error', (err) => console.error(`New data connection error with ${dataConn.peer}:`, err));
+                 }
             }
+        }
+      });
+
+      // When receiving a call, after answering, send our username back via data connection
+      peer.on('call', (call) => {
+        console.log(`Received call from ${call.peer}.`);
+        call.on('stream', (remoteStream) => {
+          console.log(`Received remote stream from incoming call with ${call.peer}.`);
+          setRemoteStream(remoteStream);
+        });
+        // Open a data connection back to the caller and send our username if one doesn't exist
+        if (!peer.connections[call.peer] || peer.connections[call.peer].length === 0 || !peer.connections[call.peer].some(conn => conn.type === 'data')) {
+             console.log(`Answering call, initiating data connection with ${call.peer} to send username.`);
+             const dataConn = peer.connect(call.peer, { reliable: true });
+              dataConn.on('open', () => {
+                console.log(`Data connection opened after answering call with ${dataConn.peer}. Sending username.`);
+                 setTimeout(() => {
+                     dataConn.send({ type: 'username', username });
+                 }, 10); // Reduced delay to 10ms
+              });
+              dataConn.on('data', (data) => {
+                 if (data.type === 'username' && data.username) {
+                     if (data.username !== username) {
+                          console.log(`Received username data via dataConn from ${dataConn.peer}: ${data.username}`);
+                          setPeerUsernames(prev => ({ ...prev, [dataConn.peer]: data.username }));
+                      }
+                 }
+              });
+               dataConn.on('close', () => console.log(`Data connection closed after answering call with ${dataConn.peer}.`));
+               dataConn.on('error', (err) => console.error(`Data connection error after answering call with ${dataConn.peer}:`, err));
+        }
+
+         call.on('close', () => console.log(`Incoming call closed with ${call.peer}.`));
+         call.on('error', (err) => console.error(`Incoming call error with ${call.peer}:`, err));
+      });
+
+      // When receiving a username via data connection, update the mapping
+      // This listener is already present within peer.on('connection'), keeping for robustness
+      // peer.on('connection', (conn) => { ... conn.on('data', ...) ... });
+
+      // Add connection status logging
+      if (peer) {
+        peer.on('connect', (peerId) => {
+          console.log('🔌 Peer connected:', peerId);
+          // Attempt to send username again after a peer connection is fully established
+          const conn = peer.connections[peerId]?.find(c => c.type === 'data');
+          if (conn && conn.open) {
+               console.log(`Peer 'connect' event for ${peerId}. Sending username.`);
+               setTimeout(() => {
+                    conn.send({ type: 'username', username });
+               }, 10); // Reduced delay to 10ms
           }
         });
+
+        peer.on('disconnect', (peerId) => {
+          console.log('🔌 Peer disconnected:', peerId);
+          // Optional: remove peer from peerUsernames on disconnect
+          setPeerUsernames(prev => { delete prev[peerId]; return { ...prev }; });
+        });
+
+        peer.on('error', (error) => {
+          console.error('❌ Peer connection error:', error);
+          setDebugInfo(prev => ({ ...prev, lastError: `Peer error: ${error.message}` }));
+        });
       }
+
+      // Update debug info when socket connects
+      if (socketRef.current.connected) {
+        setDebugInfo(prev => ({ ...prev, socketConnected: true }));
+      }
+
+      socketRef.current.on("connect", () => {
+        setDebugInfo(prev => ({ ...prev, socketConnected: true }));
+      });
+
+      socketRef.current.on("disconnect", (reason) => {
+        console.log("🔌 Socket disconnected:", reason);
+        setDebugInfo(prev => ({ ...prev, socketConnected: false }));
+      });
+
+      // Listen for the host ID from the server
+      socketRef.current.on('set-host', (hostPeerId) => {
+        console.log(`👑 Received host ID: ${hostPeerId}`);
+        setHostId(hostPeerId);
+      });
+
+      // Listen for kick event
+      socketRef.current.on('user-kicked', (kickedUserId) => {
+        console.log(`🥾 User kicked: ${kickedUserId}`);
+        if (kickedUserId === userId) {
+          alert('You have been kicked from the room.');
+          // Disconnect peer and socket and navigate away
+          if (peerRef.current) peerRef.current.destroy();
+          if (socketRef.current) socketRef.current.disconnect();
+          router.push('/'); // Redirect to home page or a kicked page
+        }
+      });
 
       // Cleanup function
       return () => {
@@ -566,7 +687,7 @@ export default function Room() {
         }
       };
     }
-  }, [roomId, socketRef, userId, localStreamReady, username]);
+  }, [roomId, socketRef, userId, localStreamReady, username]); // Added dependencies for user-connected logic
 
   // Display remote stream with error handling
   useEffect(() => {
@@ -732,7 +853,7 @@ export default function Room() {
       // Only translate if remote user has specified a target language
       if (remoteUserLanguages.wantsToHear) {
         translateAndPlay(transcript, sourceLanguage, remoteUserLanguages.wantsToHear);
-      }
+    }
     }
   }, [transcript, remotePeerId, translateAndPlay, remoteUserLanguages.wantsToHear]);
 
@@ -1027,27 +1148,27 @@ export default function Room() {
     const translationDataToUse = dataToSend || translationData;
     
     try {
-      if (!translationDataToUse || !translationDataToUse.audioBlob) {
+    if (!translationDataToUse || !translationDataToUse.audioBlob) {
         throw new Error('Missing translation data');
       }
 
-      if (!remotePeerId) {
-        throw new Error('No remote peer connection available');
-      }
+    if (!remotePeerId) {
+      throw new Error('No remote peer connection available');
+    }
 
-      if (!peerRef.current) {
-        throw new Error('No peer connection available');
-      }
+    if (!peerRef.current) {
+      throw new Error('No peer connection available');
+    }
 
-      console.log('[SEND] 🎯 Attempting to send audio message to peer:', remotePeerId);
-      console.log('[SEND] 📦 Translation data being sent:', {
-        fromLanguage: translationDataToUse.fromLanguage,
-        toLanguage: translationDataToUse.toLanguage,
-        sourceText: translationDataToUse.sourceText,
-        translatedText: translationDataToUse.translatedText,
-        audioBlobSize: translationDataToUse.audioBlob.size,
-        audioBlobType: translationDataToUse.audioBlob.type
-      });
+    console.log('[SEND] 🎯 Attempting to send audio message to peer:', remotePeerId);
+    console.log('[SEND] 📦 Translation data being sent:', {
+      fromLanguage: translationDataToUse.fromLanguage,
+      toLanguage: translationDataToUse.toLanguage,
+      sourceText: translationDataToUse.sourceText,
+      translatedText: translationDataToUse.translatedText,
+      audioBlobSize: translationDataToUse.audioBlob.size,
+      audioBlobType: translationDataToUse.audioBlob.type
+    });
 
       // Validate audio blob before sending
       const testUrl = URL.createObjectURL(translationDataToUse.audioBlob);
@@ -1152,12 +1273,12 @@ export default function Room() {
                 console.log(`✅ Sent chunk ${index + 1}/${totalChunks}`);
                 successfulChunks++;
                 
-                // Schedule next chunk with minimal delay (50ms)
-                setTimeout(() => sendChunk(index + 1), 50);
+                // Schedule next chunk with longer delay (200ms)
+                setTimeout(() => sendChunk(index + 1), 200);
               } catch (error) {
                 console.error(`❌ Error sending chunk ${index + 1}:`, error);
-                // Retry this chunk after a shorter delay (100ms)
-                setTimeout(() => sendChunk(index), 100);
+                // Retry this chunk after a longer delay (500ms)
+                setTimeout(() => sendChunk(index), 500);
               }
             };
 
@@ -1192,8 +1313,8 @@ export default function Room() {
       isLocal: true,
       isRecording,
       transcript,
-      translatedCaption: null,
-      userId: userId,
+      translatedCaption: null, // Local stream doesn't need remote translation captions
+      userId: userId, // Add userId to stream data
     },
     ...(participantCount === 2 && remoteStream ? [{
       ref: remoteVideoRef,
@@ -1202,8 +1323,9 @@ export default function Room() {
       isLocal: false,
       isRecording: isRemoteRecording,
       transcript: remoteTranscript,
+      // Get the latest translated text from receivedAudios for the remote stream caption
       translatedCaption: receivedAudios.length > 0 ? receivedAudios[receivedAudios.length - 1].translatedText : null,
-      userId: remotePeerId,
+      userId: remotePeerId, // Add userId to stream data
     }] : [])
   ];
 
@@ -1230,63 +1352,98 @@ export default function Room() {
   // Always set local video srcObject
   useEffect(() => {
     if (localVideoRef.current && localStreamRef.current) {
-      console.log('Setting local video stream');
       localVideoRef.current.srcObject = localStreamRef.current;
     }
   }, [localStreamRef.current]);
 
   // Always set remote video srcObject
   useEffect(() => {
-    if (remoteVideoRef.current) {
-      if (remoteStream) {
-        console.log('Setting remote video stream');
-        remoteVideoRef.current.srcObject = remoteStream;
-      } else {
-        console.log('Clearing remote video stream');
-        remoteVideoRef.current.srcObject = null;
-      }
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
 
+  // Function to handle kicking a user
+  const handleKick = (targetUserId) => {
+    if (userId === hostId && socketRef.current) {
+      console.log(`🥾 Host ${userId} attempting to kick user ${targetUserId}`);
+      socketRef.current.emit('kick-user', targetUserId);
+    } else {
+      console.warn('⚠️ Cannot kick user: Not the host or socket not connected');
+    }
+  };
+
   // Function to handle exiting the meeting
   const handleExitMeeting = () => {
-    console.log('🚪 Exiting meeting...');
-    
-    // Stop all media tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-    }
-    if (remoteStream) {
-      remoteStream.getTracks().forEach(track => track.stop());
-    }
-
-    // Clear video elements
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
-    }
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
-    }
-
-    // Disconnect socket and peer
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
     if (peerRef.current) {
       peerRef.current.destroy();
     }
-
-    // Clear all states
-    setRemoteStream(null);
-    setRemotePeerId(null);
-    setRemoteTranscript('');
-    setRemoteUserLanguages({});
-    setReceivedAudios([]);
-    setParticipantCount(1);
-
-    // Navigate away
     router.push('/');
   };
+
+  useEffect(() => {
+    if (!peerRef.current || !localStreamRef.current) return;
+
+    // Handle incoming calls
+    peerRef.current.on('call', (call) => {
+      console.log('Received call from:', call.peer);
+      call.answer(localStreamRef.current);
+      
+      call.on('stream', (remoteStream) => {
+        console.log('Received remote stream from:', call.peer);
+        setRemoteStream(remoteStream);
+        setRemotePeerId(call.peer);
+        setParticipantCount(2);
+      });
+
+      call.on('close', () => {
+        console.log('Call closed with:', call.peer);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
+
+      call.on('error', (err) => {
+        console.error('Call error:', err);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
+    });
+
+    // Make call to existing peer
+    if (remotePeerId && !remoteStream) {
+      console.log('Making call to:', remotePeerId);
+      const call = peerRef.current.call(remotePeerId, localStreamRef.current);
+      
+      call.on('stream', (remoteStream) => {
+        console.log('Received remote stream from call to:', remotePeerId);
+        setRemoteStream(remoteStream);
+        setParticipantCount(2);
+      });
+
+      call.on('close', () => {
+        console.log('Call closed with:', remotePeerId);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
+
+      call.on('error', (err) => {
+        console.error('Call error:', err);
+        setRemoteStream(null);
+        setRemotePeerId(null);
+        setParticipantCount(1);
+      });
+    }
+
+    return () => {
+      peerRef.current.removeAllListeners('call');
+    };
+  }, [peerRef.current, localStreamRef.current, remotePeerId, remoteStream]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
