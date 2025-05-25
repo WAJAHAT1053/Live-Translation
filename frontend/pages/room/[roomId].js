@@ -1313,8 +1313,8 @@ export default function Room() {
       isLocal: true,
       isRecording,
       transcript,
-      translatedCaption: null, // Local stream doesn't need remote translation captions
-      userId: userId, // Add userId to stream data
+      translatedCaption: null,
+      userId: userId,
     },
     ...(participantCount === 2 && remoteStream ? [{
       ref: remoteVideoRef,
@@ -1323,9 +1323,8 @@ export default function Room() {
       isLocal: false,
       isRecording: isRemoteRecording,
       transcript: remoteTranscript,
-      // Get the latest translated text from receivedAudios for the remote stream caption
       translatedCaption: receivedAudios.length > 0 ? receivedAudios[receivedAudios.length - 1].translatedText : null,
-      userId: remotePeerId, // Add userId to stream data
+      userId: remotePeerId,
     }] : [])
   ];
 
@@ -1360,6 +1359,8 @@ export default function Room() {
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+    } else if (remoteVideoRef.current && !remoteStream) {
+      remoteVideoRef.current.srcObject = null;
     }
   }, [remoteStream]);
 
