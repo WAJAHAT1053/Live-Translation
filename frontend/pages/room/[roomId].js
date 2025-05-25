@@ -1326,7 +1326,7 @@ export default function Room() {
       translatedCaption: null, // Local stream doesn't need remote translation captions
       userId: userId, // Add userId to stream data
     },
-    ...(participantCount === 2 && remoteStream ? [{
+    ...(participantCount === 2 && remoteStream && remotePeerId ? [{
       ref: remoteVideoRef,
       label: peerUsernames[remotePeerId] || 'Other Person',
       ready: connectionStatus === 'connected',
@@ -1341,7 +1341,7 @@ export default function Room() {
 
   // Determine grid classes based on number of streams
   const getGridClasses = () => {
-    const count = videoStreams.length;
+    const count = participantCount;
     if (count === 1) return 'grid-cols-1 grid-rows-1';
     if (count === 2) return 'grid-cols-2 grid-rows-1';
     if (count === 3) return 'grid-cols-3 grid-rows-1';
@@ -1353,7 +1353,7 @@ export default function Room() {
 
   // Get aspect ratio class based on number of streams
   const getAspectRatioClass = () => {
-    const count = videoStreams.length;
+    const count = participantCount;
     if (count === 1) return 'aspect-video';
     if (count === 2) return 'aspect-video';
     return 'aspect-square';
