@@ -381,16 +381,6 @@ export default function Room() {
          if (remoteVideoRef.current) {
            remoteVideoRef.current.srcObject = null;
          }
-
-         // Clean up peer connection
-         if (peerRef.current && peerRef.current.connections[disconnectedUserId]) {
-           console.log('Cleaning up peer connection for disconnected user');
-           peerRef.current.connections[disconnectedUserId].forEach(conn => {
-             if (conn.type === 'data') {
-               conn.close();
-             }
-           });
-         }
          
          console.log('✅ All remote-related states cleared, UI should show single view.');
        }
@@ -1284,11 +1274,11 @@ export default function Room() {
                 successfulChunks++;
                 
                 // Schedule next chunk with longer delay (200ms)
-                setTimeout(() => sendChunk(index + 1), 200);
+                setTimeout(() => sendChunk(index + 1), 50); // Reduced from 200ms to 50ms
               } catch (error) {
                 console.error(`❌ Error sending chunk ${index + 1}:`, error);
                 // Retry this chunk after a longer delay (500ms)
-                setTimeout(() => sendChunk(index), 500);
+                setTimeout(() => sendChunk(index), 100); // Reduced from 500ms to 100ms
               }
             };
 
@@ -1326,7 +1316,7 @@ export default function Room() {
       translatedCaption: null, // Local stream doesn't need remote translation captions
       userId: userId, // Add userId to stream data
     },
-    ...(participantCount === 2 && remoteStream && remotePeerId ? [{
+    ...(participantCount === 2 && remoteStream ? [{
       ref: remoteVideoRef,
       label: peerUsernames[remotePeerId] || 'Other Person',
       ready: connectionStatus === 'connected',
@@ -1341,7 +1331,7 @@ export default function Room() {
 
   // Determine grid classes based on number of streams
   const getGridClasses = () => {
-    const count = participantCount;
+    const count = videoStreams.length;
     if (count === 1) return 'grid-cols-1 grid-rows-1';
     if (count === 2) return 'grid-cols-2 grid-rows-1';
     if (count === 3) return 'grid-cols-3 grid-rows-1';
@@ -1353,7 +1343,7 @@ export default function Room() {
 
   // Get aspect ratio class based on number of streams
   const getAspectRatioClass = () => {
-    const count = participantCount;
+    const count = videoStreams.length;
     if (count === 1) return 'aspect-video';
     if (count === 2) return 'aspect-video';
     return 'aspect-square';
