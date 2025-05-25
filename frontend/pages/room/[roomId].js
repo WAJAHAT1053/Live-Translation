@@ -502,6 +502,7 @@ export default function Room() {
         peer.on('call', (call) => {
           console.log(`Received call from ${call.peer}.`);
           if (localStreamRef.current) {
+            console.log('Answering call with local stream');
             call.answer(localStreamRef.current);
             call.on('stream', (remoteStream) => {
               console.log(`Received remote stream from incoming call with ${call.peer}.`);
@@ -509,22 +510,33 @@ export default function Room() {
               setRemotePeerId(call.peer);
               setParticipantCount(2);
             });
+          } else {
+            console.error('Cannot answer call: local stream not ready');
           }
         });
 
         // Make call to existing peer
         socketRef.current.on("user-connected", (remoteUserId) => {
           console.log(`Socket user-connected: ${remoteUserId}. My user ID: ${userId}`);
-          if (remoteUserId !== userId && !peer.connections[remoteUserId]) {
-            console.log(`Initiating call to ${remoteUserId}`);
-            const call = peer.call(remoteUserId, localStreamRef.current, { metadata: { username } });
-            if (call) {
-              call.on("stream", (remoteStream) => {
-                console.log(`Received remote stream from call with ${call.peer}.`);
-                setRemoteStream(remoteStream);
-                setRemotePeerId(call.peer);
-                setParticipantCount(2);
-              });
+          if (remoteUserId !== userId) {
+            // Check if a connection already exists
+            if (!peer.connections[remoteUserId] || peer.connections[remoteUserId].length === 0) {
+              console.log(`Initiating call to ${remoteUserId}`);
+              if (localStreamRef.current) {
+                const call = peer.call(remoteUserId, localStreamRef.current, { metadata: { username } });
+                if (call) {
+                  call.on("stream", (remoteStream) => {
+                    console.log(`Received remote stream from call with ${call.peer}.`);
+                    setRemoteStream(remoteStream);
+                    setRemotePeerId(call.peer);
+                    setParticipantCount(2);
+                  });
+                }
+              } else {
+                console.error('Cannot initiate call: local stream not ready');
+              }
+            } else {
+              console.log(`Connection to ${remoteUserId} already exists`);
             }
           }
         });
@@ -1204,6 +1216,7 @@ export default function Room() {
   // Always set local video srcObject
   useEffect(() => {
     if (localVideoRef.current && localStreamRef.current) {
+      console.log('Setting local video stream');
       localVideoRef.current.srcObject = localStreamRef.current;
     }
   }, [localStreamRef.current]);
@@ -1212,8 +1225,10 @@ export default function Room() {
   useEffect(() => {
     if (remoteVideoRef.current) {
       if (remoteStream) {
+        console.log('Setting remote video stream');
         remoteVideoRef.current.srcObject = remoteStream;
       } else {
+        console.log('Clearing remote video stream');
         remoteVideoRef.current.srcObject = null;
       }
     }
