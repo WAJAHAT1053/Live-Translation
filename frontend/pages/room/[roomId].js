@@ -1363,87 +1363,45 @@ export default function Room() {
     }
   }, [remoteStream]);
 
-  // Function to handle kicking a user
-  const handleKick = (targetUserId) => {
-    if (userId === hostId && socketRef.current) {
-      console.log(`🥾 Host ${userId} attempting to kick user ${targetUserId}`);
-      socketRef.current.emit('kick-user', targetUserId);
-    } else {
-      console.warn('⚠️ Cannot kick user: Not the host or socket not connected');
-    }
-  };
-
   // Function to handle exiting the meeting
   const handleExitMeeting = () => {
+    console.log('🚪 Exiting meeting...');
+    
+    // Stop all media tracks
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+    }
+    if (remoteStream) {
+      remoteStream.getTracks().forEach(track => track.stop());
+    }
+
+    // Clear video elements
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    // Disconnect socket and peer
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
     if (peerRef.current) {
       peerRef.current.destroy();
     }
+
+    // Clear all states
+    setRemoteStream(null);
+    setRemotePeerId(null);
+    setRemoteTranscript('');
+    setRemoteUserLanguages({});
+    setReceivedAudios([]);
+    setParticipantCount(1);
+
+    // Navigate away
     router.push('/');
   };
-
-  useEffect(() => {
-    if (!peerRef.current || !localStreamRef.current) return;
-
-    // Handle incoming calls
-    peerRef.current.on('call', (call) => {
-      console.log('Received call from:', call.peer);
-      call.answer(localStreamRef.current);
-      
-      call.on('stream', (remoteStream) => {
-        console.log('Received remote stream from:', call.peer);
-        setRemoteStream(remoteStream);
-        setRemotePeerId(call.peer);
-        setParticipantCount(2);
-      });
-
-      call.on('close', () => {
-        console.log('Call closed with:', call.peer);
-        setRemoteStream(null);
-        setRemotePeerId(null);
-        setParticipantCount(1);
-      });
-
-      call.on('error', (err) => {
-        console.error('Call error:', err);
-        setRemoteStream(null);
-        setRemotePeerId(null);
-        setParticipantCount(1);
-      });
-    });
-
-    // Make call to existing peer
-    if (remotePeerId && !remoteStream) {
-      console.log('Making call to:', remotePeerId);
-      const call = peerRef.current.call(remotePeerId, localStreamRef.current);
-      
-      call.on('stream', (remoteStream) => {
-        console.log('Received remote stream from call to:', remotePeerId);
-        setRemoteStream(remoteStream);
-        setParticipantCount(2);
-      });
-
-      call.on('close', () => {
-        console.log('Call closed with:', remotePeerId);
-        setRemoteStream(null);
-        setRemotePeerId(null);
-        setParticipantCount(1);
-      });
-
-      call.on('error', (err) => {
-        console.error('Call error:', err);
-        setRemoteStream(null);
-        setRemotePeerId(null);
-        setParticipantCount(1);
-      });
-    }
-
-    return () => {
-      peerRef.current.removeAllListeners('call');
-    };
-  }, [peerRef.current, localStreamRef.current, remotePeerId, remoteStream]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
