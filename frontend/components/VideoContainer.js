@@ -8,6 +8,9 @@ const VideoContainer = ({ label, stream, isLocal, className }) => {
     if (videoRef.current && stream) {
       console.log(`Setting video stream for ${label}`);
       videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(err => {
+        console.error(`Error playing video for ${label}:`, err);
+      });
     }
   }, [stream, label]);
 
@@ -17,6 +20,7 @@ const VideoContainer = ({ label, stream, isLocal, className }) => {
       if (videoRef.current && videoRef.current.srcObject) {
         console.log(`Cleaning up video stream for ${label}`);
         videoRef.current.srcObject = null;
+        videoRef.current.load();
       }
     };
   }, [label]);
@@ -29,6 +33,7 @@ const VideoContainer = ({ label, stream, isLocal, className }) => {
         playsInline
         muted={isLocal}
         className="w-full h-full object-cover rounded-lg"
+        style={{ transform: 'scaleX(-1)' }} // Flip all videos
       />
     </div>
   );

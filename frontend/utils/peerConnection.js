@@ -22,6 +22,7 @@ export const setupPeer = (roomId, socketRef, userId, localStreamRef, onStream, o
   peer.on('call', (call) => {
     console.log('Received call from:', call.peer);
     if (localStreamRef.current) {
+      console.log('Answering call with local stream');
       call.answer(localStreamRef.current);
       call.on('stream', (remoteStream) => {
         console.log('Received remote stream from:', call.peer);
@@ -44,6 +45,17 @@ export const setupPeer = (roomId, socketRef, userId, localStreamRef, onStream, o
       }
     });
   });
+
+  // Add method to make calls
+  peer.call = (peerId, stream, metadata) => {
+    console.log('Making call to:', peerId);
+    const call = peer.call(peerId, stream, { metadata });
+    call.on('stream', (remoteStream) => {
+      console.log('Received remote stream from outgoing call to:', peerId);
+      onStream(remoteStream, call);
+    });
+    return call;
+  };
 
   return peer;
 }; 
